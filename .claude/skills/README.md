@@ -16,7 +16,8 @@
 |-------|----------|---------|----------|
 | **feature-planner** | plan, planning, phases | 기능 개발 계획 수립 | TDD 단계별 계획, 품질 게이트 |
 | **code-review-checklist** | review, pr, pull request | PR 리뷰 자동화 | 기능/테스트/보안/성능 체크 |
-| **test-strategy** | test strategy, pyramid, coverage | 테스트 전략 수립 | Test Pyramid, 커버리지 목표 |
+| **test-strategy** | test strategy, pyramid, coverage | 프론트엔드 테스트 전략 | Test Pyramid (React), 커버리지 목표 |
+| **backend-test-strategy** | backend test, spring test, integration test | 백엔드 테스트 전략 | Spring Boot Unit/Integration/E2E |
 | **security-checklist** | security, api, auth | 보안 검증 | OWASP Top 10, 입력 검증 |
 
 ---
@@ -316,5 +317,5 @@ Security Checklist Skill 자동 활성화:
 ---
 
 **Last Updated**: 2025-12-30
-**Skill Count**: 4
+**Skill Count**: 5
 **Next Update**: 스킬 추가/수정 시

@@ -1,6 +1,6 @@
 # Session Context - LobAI (Lobi) Landing Page & Technical Fixes
 
-**Date**: 2025-12-28 to 2025-12-29
+**Date**: 2025-12-28 to 2025-12-30
 **Status**: ✅ All Issues Resolved
 
 ---
@@ -214,6 +214,60 @@ const onSplineLoad = (splineApp: any) => {
 
 **Result**: Character now loads completely before appearing, with smooth fade-in
 
+### Problem 7: Page Scroll on Chat Message & System Status Actions (CRITICAL)
+**Date**: 2025-12-30
+
+**Symptoms**:
+- When sending AI messages → entire page scrolls down
+- When clicking System Status buttons (FEED UNIT, INITIATE PLAY, SLEEP MODE) → entire page scrolls down
+- Previously fixed "page starts at scrolled position" bug did not recur
+- Only chat container should scroll, not the entire page
+
+**Root Cause Investigation**:
+- Line 143-151: `chatEndRef.scrollIntoView({ behavior: 'smooth' })` was triggering on every message change
+- `scrollIntoView()` scrolls the **entire page** to bring the element into view
+- `handleAction()` at line 166 adds bot response messages → triggers scroll effect
+- This affected both AI chat and System Status button clicks
+
+**Root Cause**:
+- `useEffect` watching `messages` array was using `scrollIntoView()` which scrolls the whole page
+- No distinction between "scroll chat container" vs "scroll page"
+
+**Solution Applied**: Changed from page scroll to container scroll
+1. **Added chatContainerRef** (index.tsx:33):
+   ```typescript
+   const chatContainerRef = useRef<HTMLDivElement>(null);
+   ```
+
+2. **Modified scroll logic** (index.tsx:144-149):
+   ```typescript
+   // ❌ Before: Scrolls entire page
+   chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+   // ✅ After: Scrolls only chat container
+   chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+   ```
+
+3. **Connected ref to JSX** (index.tsx:334):
+   ```typescript
+   <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+   ```
+
+4. **Removed unused ref**: Deleted `hasScrolledToChat` ref (no longer needed)
+
+**Code References**:
+- index.tsx:33 (chatContainerRef declaration)
+- index.tsx:144-149 (scroll logic)
+- index.tsx:334 (JSX ref connection)
+
+**Result**:
+- ✅ Chat messages scroll to bottom inside chat container only
+- ✅ System Status button clicks no longer scroll the page
+- ✅ Page stays at user's current scroll position
+- ✅ Initial page load still starts at top (previous fix maintained)
+
+**Agent Used**: Refactor Agent workflow applied (read → analyze → refactor → verify)
+
 ---
 
 ## File Changes Summary
@@ -245,11 +299,13 @@ const onSplineLoad = (splineApp: any) => {
 - Changed 3D container from iframe to Spline component
 - Added Features, How It Works, CTA, and Footer sections
 - Made layout scrollable (removed h-screen constraints)
+- **[2025-12-30]** Fixed page scroll bug by using container scroll instead of scrollIntoView
 
 **Key Functions**:
 - `onSplineLoad()` - Lines 136-156 - Initializes 3D object references
 - `handleCharacterClick()` - Lines 158-177 - Toggles character state
 - Navbar auto-hide effect - Lines 112-134
+- **[2025-12-30]** Chat scroll effect - Lines 144-149 - Scrolls chat container only
 
 **State Variables Added**:
 ```typescript
@@ -258,7 +314,11 @@ const splineRef = useRef<any>(null);
 const mouthObjRef = useRef<any>(null);
 const eyesObjRef = useRef<any>(null);
 const [navbarVisible, setNavbarVisible] = useState(true);
+const chatContainerRef = useRef<HTMLDivElement>(null);  // [2025-12-30] Added
 ```
+
+**Removed Variables** (2025-12-30):
+- `hasScrolledToChat` ref - No longer needed with new scroll approach
 
 ---
 
@@ -444,6 +504,15 @@ border-radius: 24px;
 - **Transparent Iframes**: Use `!important` flag for iframe background overrides
 - **Hardware Acceleration**: Use `transform` properties instead of `top`/`left` for animations
 
+### Scroll Behavior Patterns (2025-12-30)
+- **scrollIntoView() Behavior**: Always scrolls the **entire page** to bring element into view, even if element is inside a scrollable container
+- **Container Scrolling**: Use `element.scrollTop = element.scrollHeight` to scroll only within a specific container
+- **When to Use Each**:
+  - `scrollIntoView()`: For navigating to different sections of the page (navbar links, anchor links)
+  - `scrollTop`: For scrolling within a fixed-height overflow container (chat windows, modals)
+- **React Refs for Containers**: Need separate refs for both the container (`chatContainerRef`) and the scroll target (`chatEndRef`)
+- **Pattern**: Container ref controls scroll position, end marker ref provides scroll target
+
 ---
 
 ## Testing Checklist
@@ -467,6 +536,9 @@ border-radius: 24px;
 - [✓] System status panel maintains size on load
 - [✓] All text changed from GENKUB to Lobi
 - [✓] Build completes without errors
+- [✓] Chat messages scroll within chat container only (not entire page)
+- [✓] System Status buttons don't scroll the page
+- [✓] AI message responses don't scroll the page
 
 ---
 
@@ -529,21 +601,54 @@ border-radius: 24px;
 
 **Total Time Across Sessions**: ~3-4 hours
 
+### Session 3: Chat Scroll Bug Fix (2025-12-30)
+1. **Bug Report** (User feedback)
+   - User reported: AI messages and System Status button clicks scroll the entire page down
+   - Previously fixed "page starts at scrolled position" bug did not recur (good)
+   - Expected: Only chat container should scroll, not entire page
+
+2. **Investigation & Analysis** (10-15 min)
+   - Read index.tsx to understand scroll logic
+   - Identified root cause: `scrollIntoView()` at lines 143-151
+   - Analyzed how `messages` array changes trigger scroll effect
+   - Found `handleAction()` adds messages → triggers unwanted page scroll
+
+3. **Refactor Agent Workflow Applied** (15-20 min)
+   - Added `chatContainerRef` to reference chat container div
+   - Changed scroll approach from `scrollIntoView()` to `scrollTop = scrollHeight`
+   - Connected ref to JSX chat container element
+   - Removed unused `hasScrolledToChat` ref
+   - Started dev server to verify fix
+
+4. **Documentation Update** (10 min)
+   - Updated SESSION_CONTEXT.md with Problem 7 details
+   - Added code references and solution explanation
+   - Updated file changes summary
+
+**Session Time**: ~30-45 min
+
 ---
 
 ## Final Notes
 
-- All critical UI/UX bugs resolved
+- All critical UI/UX bugs resolved (including chat scroll bug - 2025-12-30)
 - Page loads correctly at top position
+- Chat messages scroll correctly within container (not entire page)
 - 3D character renders smoothly without visual artifacts
 - Project ready for next development phase
 - Backend integration and database setup remain as next major milestones
 - Consider implementing state persistence before adding more character states
 - Review responsive design for mobile devices before public launch
 
-### Session Continuity Note
-This session was continued from a previous conversation that ran out of context. The conversation summary was generated and preserved to maintain continuity. All user-reported issues have been successfully resolved.
+### Session Continuity Notes
+- **Session 1-2**: Continued from previous conversation that ran out of context. Conversation summary preserved.
+- **Session 3 (2025-12-30)**: New session for chat scroll bug fix. Applied Refactor Agent workflow.
+
+### Dev Server Status
+- **Background Task**: Running on localhost:3000 (task ID: bb0f92c)
+- **Status**: Ready for testing
 
 ---
 
-**Status: All features implemented and all critical bugs fixed. Session completed successfully.**
+**Status: All features implemented and all critical bugs fixed. Sessions completed successfully.**
+**Last Updated**: 2025-12-30

@@ -67,25 +67,27 @@ MCP를 사용하면 Claude Code가 다음과 같은 작업을 수행할 수 있�
 
 ---
 
-### 3. Postgres MCP (Future)
+### 3. MySQL MCP (Recommended 🔥)
 
-**Purpose**: PostgreSQL 데이터베이스 쿼리
+**Purpose**: MySQL 데이터베이스 쿼리 및 스키마 관리
 
-**Status**: 🔮 백엔드 추가 시 설치
+**Status**: ✅ 설치 권장 (백엔드 개발 시 필수)
 
 **What it does**:
-- 스키마 조회
-- SQL 쿼리 실행
-- 마이그레이션 검증
+- 스키마 조회 (SHOW CREATE TABLE)
+- SQL 쿼리 실행 (SELECT, INSERT 등)
+- 인덱스 확인 (SHOW INDEX)
+- 마이그레이션 검증 (Flyway 히스토리)
 
 **Use Cases**:
 ```
 "users 테이블 스키마 알려줘"
 "최근 가입 사용자 10명 조회"
+"messages 테이블 인덱스 확인"
 "느린 쿼리 찾아줘"
 ```
 
-**Setup Guide**: [recommended-mcp-servers.md](./recommended-mcp-servers.md#postgres-mcp)
+**Setup Guide**: [mysql-setup.md](./mysql-setup.md)
 
 ---
 
@@ -367,4 +369,5 @@ claude_desktop_config.json
 
 **Last Updated**: 2025-12-30
 **Active MCP Servers**: 1 (Context7)
+**Recommended for Backend**: MySQL MCP
 **Next Update**: MCP 서버 추가 시

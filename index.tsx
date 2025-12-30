@@ -30,12 +30,12 @@ const LOBI_APP = () => {
   const [navbarVisible, setNavbarVisible] = useState(true);
   const [isCrying, setIsCrying] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScrollY = useRef(0);
   const splineRef = useRef<any>(null);
   const mouthObjRef = useRef<any>(null);
   const eyesObjRef = useRef<any>(null);
-  const hasScrolledToChat = useRef(false);
   const [splineReady, setSplineReady] = useState(false);
 
   // Initial setup
@@ -141,12 +141,9 @@ const LOBI_APP = () => {
   };
 
   useEffect(() => {
-    // Only scroll to chat when user adds messages (more than initial welcome message)
-    if (messages.length > 1 && !hasScrolledToChat.current) {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      hasScrolledToChat.current = true;
-    } else if (messages.length > 1 && hasScrolledToChat.current) {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll chat container to bottom (without scrolling the entire page)
+    if (messages.length > 1 && chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
@@ -333,7 +330,7 @@ const LOBI_APP = () => {
               <span className="text-xs font-semibold uppercase tracking-widest opacity-60">Neural Interface</span>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${

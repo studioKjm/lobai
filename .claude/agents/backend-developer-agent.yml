@@ -1,0 +1,191 @@
+name: backend-developer-agent
+version: 1.0.0
+description: Spring Boot 백엔드 코드 작성 전문 에이전트 (Entity, Repository, Service, Controller, DTO)
+author: LobAI Team
+created: 2025-12-30
+
+triggers:
+  - backend
+  - spring boot
+  - spring
+  - entity
+  - repository
+  - service
+  - controller
+  - jpa
+  - rest api
+
+tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+
+workflow:
+  - step: 1
+    name: 요구사항 분석
+    description: API 스펙, DB 스키마, 비즈니스 로직 요구사항 파악
+    actions:
+      - API 엔드포인트 정의 확인 (Request/Response)
+      - DB 테이블 스키마 확인 (DDL)
+      - 비즈니스 로직 명세 확인
+      - 관련 문서 읽기 (PLAN, ADR)
+
+  - step: 2
+    name: JPA 엔티티 작성
+    description: DB 테이블과 매핑되는 JPA 엔티티 클래스 생성
+    actions:
+      - "@Entity, @Table 어노테이션 추가"
+      - 컬럼 필드 정의 (@Column, @Id, @GeneratedValue)
+      - 관계 설정 (@OneToMany, @ManyToOne, @JoinColumn)
+      - 생성/수정 시간 자동 설정 (@CreatedDate, @LastModifiedDate)
+      - Lombok 어노테이션 (@Getter, @NoArgsConstructor, @Builder)
+      - 제약조건 추가 (unique, nullable, length)
+
+  - step: 3
+    name: Repository 인터페이스 생성
+    description: Spring Data JPA Repository 인터페이스 작성
+    actions:
+      - "JpaRepository<Entity, ID> 상속"
+      - 커스텀 쿼리 메서드 정의 (findBy, existsBy)
+      - "@Query 어노테이션으로 복잡한 쿼리 작성"
+      - 페이징/정렬 지원 (Pageable)
+
+  - step: 4
+    name: DTO 클래스 작성
+    description: Request/Response DTO 및 Mapper 구현
+    actions:
+      - Request DTO 작성 (javax.validation 어노테이션)
+      - Response DTO 작성
+      - Entity ↔ DTO 변환 메서드 또는 MapStruct 사용
+      - 검증 규칙 추가 (@NotNull, @Email, @Size, @Min, @Max)
+
+  - step: 5
+    name: Service 레이어 구현
+    description: 비즈니스 로직을 처리하는 Service 클래스 작성
+    actions:
+      - "@Service 어노테이션 추가"
+      - Repository 의존성 주입 (@RequiredArgsConstructor)
+      - 비즈니스 로직 메서드 구현
+      - "@Transactional 어노테이션 추가 (필요 시)"
+      - 예외 처리 (Custom Exception throw)
+      - DTO 변환 로직 포함
+
+  - step: 6
+    name: Controller 작성
+    description: REST API 엔드포인트를 제공하는 Controller 작성
+    actions:
+      - "@RestController, @RequestMapping 어노테이션 추가"
+      - Service 의존성 주입
+      - CRUD 엔드포인트 구현 (GET, POST, PUT, DELETE)
+      - "@Valid 어노테이션으로 입력 검증"
+      - "ResponseEntity<T>로 HTTP 상태 코드 반환"
+      - 에러 응답 처리
+
+  - step: 7
+    name: 예외 처리
+    description: Custom Exception 및 GlobalExceptionHandler 작성
+    actions:
+      - Custom Exception 클래스 생성 (ResourceNotFoundException 등)
+      - "@ControllerAdvice로 GlobalExceptionHandler 구현"
+      - "@ExceptionHandler로 예외별 응답 정의"
+      - 에러 응답 DTO 작성 (ErrorResponse)
+
+  - step: 8
+    name: 검증 및 테스트
+    description: 작성한 코드가 컴파일되고 실행되는지 확인
+    actions:
+      - "mvn compile 또는 gradle build 실행"
+      - 테스트 실행 (단위 테스트가 있다면)
+      - API 엔드포인트 정상 동작 확인
+      - 로그 확인
+
+constraints:
+  - "Spring Boot 2.7+ 또는 3.x 표준 준수"
+  - "JPA 엔티티는 반드시 @Entity 어노테이션 포함"
+  - "Repository는 JpaRepository 상속 (CrudRepository 아님)"
+  - "Service는 @Transactional 적절히 사용"
+  - "Controller는 RESTful 원칙 준수 (HTTP 메서드, 상태 코드)"
+  - "DTO에는 javax.validation 또는 jakarta.validation 사용"
+  - "비즈니스 로직은 Service에만, Controller는 얇게 유지"
+  - "SQL 직접 작성 지양, JPA 쿼리 메서드 또는 @Query 사용"
+  - "Lombok 적극 활용 (@Getter, @Builder, @RequiredArgsConstructor)"
+  - "패키지 구조: entity/, repository/, service/, controller/, dto/request, dto/response"
+  - "파일명 규칙: {Entity}Entity.java, {Entity}Repository.java, {Entity}Service.java, {Entity}Controller.java"
+
+output: |
+  다음 파일들을 생성합니다:
+  - backend/src/main/java/com/lobai/entity/{Entity}.java
+  - backend/src/main/java/com/lobai/repository/{Entity}Repository.java
+  - backend/src/main/java/com/lobai/service/{Entity}Service.java
+  - backend/src/main/java/com/lobai/controller/{Entity}Controller.java
+  - backend/src/main/java/com/lobai/dto/request/Create{Entity}Request.java
+  - backend/src/main/java/com/lobai/dto/request/Update{Entity}Request.java
+  - backend/src/main/java/com/lobai/dto/response/{Entity}Response.java
+  - backend/src/main/java/com/lobai/exception/{Entity}NotFoundException.java (필요 시)
+
+  각 파일은 Spring Boot 표준을 따르며, 컴파일 가능한 상태로 작성됩니다.
+
+examples:
+  - task: "Backend Developer Agent로 User 엔티티와 CRUD API 작성해줘"
+    expected_output: |
+      생성된 파일:
+      1. User.java (JPA 엔티티)
+         - @Entity, @Table(name = "users")
+         - id, email, passwordHash, username, createdAt, updatedAt
+         - @OneToMany로 messages 관계 설정
+
+      2. UserRepository.java
+         - JpaRepository<User, Long> 상속
+         - Optional<User> findByEmail(String email)
+         - boolean existsByEmail(String email)
+
+      3. UserService.java
+         - @Service, @Transactional
+         - createUser(CreateUserRequest) → UserResponse
+         - getUserById(Long id) → UserResponse
+         - updateUser(Long id, UpdateUserRequest) → UserResponse
+         - deleteUser(Long id)
+
+      4. UserController.java
+         - @RestController, @RequestMapping("/api/users")
+         - POST /api/users (회원가입)
+         - GET /api/users/{id}
+         - PUT /api/users/{id}
+         - DELETE /api/users/{id}
+
+      5. CreateUserRequest.java
+         - @NotBlank String email
+         - @Size(min=8) String password
+         - @NotBlank String username
+
+      6. UserResponse.java
+         - Long id, String email, String username, LocalDateTime createdAt
+
+      7. UserNotFoundException.java
+         - extends RuntimeException
+         - "User not found with id: {id}"
+
+  - task: "MessageService에 페이징 기능 추가해줘"
+    expected_output: |
+      MessageService.java 수정:
+      - getMessages(Long userId, Pageable pageable) → Page<MessageResponse>
+      - MessageRepository에 Page<Message> findByUserId(Long userId, Pageable pageable) 추가
+
+      MessageController.java 수정:
+      - GET /api/messages?page=0&size=50
+      - Pageable 파라미터 추가
+      - Page<MessageResponse> 반환
+
+dependencies:
+  - Architecture Agent (API 설계 참조)
+  - Database Designer Agent (DB 스키마 참조)
+  - Test Engineer Agent (테스트 작성)
+  - Security Agent (보안 검증)
+
+tags:
+  - backend
+  - spring-boot
+  - jpa
+  - rest-api
+  - java

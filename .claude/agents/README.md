@@ -19,6 +19,7 @@
 | **security-agent** | 보안 검사 및 취약점 분석 | Read, Grep | 보안 리포트, 개선 제안 |
 | **refactor-agent** | 코드 품질 개선 | Read, Edit, Bash | 리팩터링된 코드, 개선 리포트 |
 | **integration-specialist-agent** | 외부 시스템 통합 | Read, Write, Edit, Bash, WebFetch | 통합 코드, 설정 파일, 문서 |
+| **backend-developer-agent** | Spring Boot 백엔드 코드 작성 | Read, Write, Edit, Bash | Entity, Repository, Service, Controller, DTO |
 
 ---
 
@@ -208,5 +209,5 @@ output: string                 # 기대 출력
 ---
 
 **Last Updated**: 2025-12-30
-**Agent Count**: 5
+**Agent Count**: 6
 **Next Update**: 에이전트 추가/수정 시
