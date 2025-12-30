@@ -1,13 +1,13 @@
-# Session Context - LobAI (Lobi) Landing Page & Technical Fixes
+# Session Context - LobAI (Lobi) Landing Page & Backend Infrastructure
 
 **Date**: 2025-12-28 to 2025-12-30
-**Status**: ✅ All Issues Resolved
+**Status**: ✅ Frontend Complete, Backend Infrastructure In Progress
 
 ---
 
 ## Session Overview
 
-This session included the initial project setup, landing page redesign, 3D character implementation, and critical technical fixes for scroll behavior and 3D rendering issues.
+This session included the initial project setup, landing page redesign, 3D character implementation, critical technical fixes for scroll behavior and 3D rendering issues, and **backend infrastructure setup with Spring Boot + MySQL**.
 
 ### Key Accomplishments
 
@@ -42,44 +42,453 @@ This session included the initial project setup, landing page redesign, 3D chara
      - Flat character: Implemented triple requestAnimationFrame + 200ms timeout + fade-in
    - **Layout Shifts**: Fixed system status panel resizing on load
      - Rolled back layout changes that caused shifts while keeping scroll fixes
+   - **Chat Scroll Bug**: Fixed entire page scrolling when sending messages
+     - Changed from `scrollIntoView()` to container `scrollTop` manipulation
+
+6. **Backend Infrastructure Setup** ⭐ NEW (2025-12-30)
+   - Installed 3 MCP servers (MySQL, GitHub, Playwright)
+   - Created Spring Boot 3.2.1 project with Gradle
+   - Set up MySQL database (lobai_db)
+   - Configured JWT authentication dependencies
+   - Established project structure and basic configuration
 
 ---
 
 ## Technical Stack
 
-- **Frontend**: React 19.2.3 + TypeScript 5.8.2 + Vite 6.2.0
+### Frontend
+- **Framework**: React 19.2.3 + TypeScript 5.8.2 + Vite 6.2.0
 - **Styling**: TailwindCSS (via CDN)
 - **3D Graphics**: @splinetool/react-spline 4.0.0, @splinetool/runtime 1.9.46
 - **AI Integration**: @google/genai (Gemini AI)
 - **Fonts**: DM Sans (body), Syne (display headings)
 
+### Backend ⭐ NEW
+- **Framework**: Spring Boot 3.2.1
+- **Language**: Java 17 (OpenJDK)
+- **Build Tool**: Gradle 8.5
+- **Database**: MySQL 8.0.44
+- **ORM**: Hibernate (JPA)
+- **Security**: Spring Security + JWT (JJWT 0.12.3)
+- **Connection Pool**: HikariCP
+
+### Development Tools ⭐ NEW
+- **MCP Servers**: MySQL, GitHub, Playwright
+- **Database Client**: MySQL MCP for schema management
+- **CI/CD**: GitHub MCP for PR/Issue automation
+- **Testing**: Playwright MCP for E2E testing
+
 ---
 
-## Key Technical Decisions
+## Backend Infrastructure Setup (Session 4 - 2025-12-30)
 
-### 1. Typography Change
-**Decision**: Changed from Inter/Outfit to DM Sans/Syne
-**Rationale**: More distinctive, futuristic aesthetic aligned with AI-focused brand identity
+### MCP Server Installation
 
-### 2. Color Palette
-**Primary**: `#00d9ff` (Cyan) - Tech-forward, futuristic
-**Secondary**: `#ffb800` (Amber) - Warmth, energy
-**Background**: `#050505` (Near-black) - Premium dark theme
+Installed 3 Model Context Protocol servers to automate backend development workflows:
 
-### 3. Navigation Auto-Hide
-**Implementation**:
-- Navbar hides after 3 seconds when scrolled past 100px
-- Reappears on mouse hover near top edge
-- Smooth cubic-bezier transitions for premium feel
+#### 1. MySQL MCP
+**Purpose**: Database query, schema inspection, and validation
 
-**Code Reference**: index.tsx:112-134 (navbar state management)
+**Installation Steps**:
+1. Installed MySQL 8.0.44 via Homebrew
+2. Created database: `lobai_db` (utf8mb4 charset)
+3. Created user: `lobai_user` with password `lobai_dev_password`
+4. Granted full privileges on `lobai_db`
+5. Added MCP server to Claude Code config
 
-### 4. Spline 3D Integration
-**Challenge**: Remote Spline URLs returned 403 Forbidden errors
-**Solution**: Downloaded .splinecode file locally to `/public/scene.splinecode`
-**Implementation**: Used @splinetool/react-spline with local file reference
+**Configuration** (claude_desktop_config.json):
+```json
+{
+  "mysql": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-mysql"],
+    "env": {
+      "MYSQL_HOST": "localhost",
+      "MYSQL_PORT": "3306",
+      "MYSQL_USER": "lobai_user",
+      "MYSQL_PASSWORD": "lobai_dev_password",
+      "MYSQL_DATABASE": "lobai_db"
+    }
+  }
+}
+```
 
-**Code Reference**: index.tsx:136-156 (Spline load handler), index.tsx:158-177 (state change logic)
+**Use Cases**:
+- "users 테이블 스키마 보여줘" → Shows CREATE TABLE statement
+- "최근 가입 사용자 10명 조회" → SELECT query execution
+- "messages 테이블 인덱스 확인" → SHOW INDEX output
+
+**Setup Guide**: `.claude/mcp-configs/mysql-setup.md`
+
+---
+
+#### 2. GitHub MCP
+**Purpose**: PR/Issue automation, commit analysis, review automation
+
+**Installation Steps**:
+1. Added GitHub MCP to Claude Code config
+2. Configured to use `${GITHUB_TOKEN}` environment variable
+3. Token generation required: https://github.com/settings/tokens
+
+**Configuration** (claude_desktop_config.json):
+```json
+{
+  "github": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "env": {
+      "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+    }
+  }
+}
+```
+
+**Required Token Permissions**:
+- ✅ `repo` (Full control of private repositories)
+- ✅ `read:org` (Read org and team membership)
+- ✅ `workflow` (Update GitHub Action workflows)
+
+**Use Cases**:
+- "GitHub MCP로 PR 생성해줘" → Automated PR creation
+- "PR #5 리뷰해줘" → Code review comments
+- "최근 커밋 10개 분석해줘" → Commit history analysis
+
+**Setup Guide**: `.claude/mcp-configs/github-setup.md`
+
+---
+
+#### 3. Playwright MCP
+**Purpose**: E2E testing, UI automation, cross-browser testing
+
+**Installation Steps**:
+1. Installed Playwright via npm: `npm install -D @playwright/test`
+2. Installed Chromium browser: `npx playwright install chromium`
+3. Added Playwright MCP to Claude Code config
+
+**Configuration** (claude_desktop_config.json):
+```json
+{
+  "playwright": {
+    "command": "npx",
+    "args": ["-y", "@playwright/mcp-server"],
+    "env": {
+      "PLAYWRIGHT_HEADLESS": "false",
+      "PLAYWRIGHT_BROWSER": "chromium"
+    }
+  }
+}
+```
+
+**Use Cases**:
+- "Playwright로 로그인 플로우 테스트해줘" → E2E test automation
+- "Stats 패널이 제대로 표시되는지 확인해줘" → UI element verification
+- "Chrome, Firefox, Safari에서 모두 테스트해줘" → Cross-browser testing
+
+**Setup Guide**: `.claude/mcp-configs/playwright-setup.md`
+
+---
+
+### Spring Boot Project Structure
+
+Created backend project with standard Spring Boot architecture:
+
+```
+backend/
+├── build.gradle                     # Gradle dependencies
+├── settings.gradle                  # Project name
+├── gradlew / gradlew.bat           # Gradle wrapper
+├── .gitignore                      # Gradle, IDE, env files
+│
+└── src/
+    ├── main/
+    │   ├── java/com/lobai/
+    │   │   ├── LobaiBackendApplication.java    # Main class
+    │   │   │
+    │   │   ├── config/
+    │   │   │   ├── CorsConfig.java             # CORS settings
+    │   │   │   └── SecurityConfig.java         # Spring Security (permitAll for now)
+    │   │   │
+    │   │   ├── controller/
+    │   │   │   └── HealthController.java       # GET /api/health
+    │   │   │
+    │   │   ├── dto/
+    │   │   │   ├── request/                    # Request DTOs (empty)
+    │   │   │   └── response/                   # Response DTOs (empty)
+    │   │   │
+    │   │   ├── entity/                         # JPA Entities (empty)
+    │   │   ├── exception/                      # Global exception handler (empty)
+    │   │   ├── repository/                     # JPA Repositories (empty)
+    │   │   ├── security/                       # JWT classes (empty)
+    │   │   └── service/                        # Business logic (empty)
+    │   │
+    │   └── resources/
+    │       └── application.yml                 # App configuration
+    │
+    └── test/java/com/lobai/                   # Unit tests (empty)
+```
+
+---
+
+### Spring Boot Dependencies (build.gradle)
+
+```gradle
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // MySQL
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Development Tools
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+```
+
+---
+
+### application.yml Configuration
+
+**Database Connection**:
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/lobai_db?useSSL=false&serverTimezone=Asia/Seoul
+    username: lobai_user
+    password: lobai_dev_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        show_sql: true
+```
+
+**Server Configuration**:
+```yaml
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+```
+
+**JWT Configuration**:
+```yaml
+jwt:
+  secret: your-very-secure-secret-key-at-least-256-bits-long
+  access-token-expiry: 900000      # 15분
+  refresh-token-expiry: 604800000  # 7일
+```
+
+**Gemini API Configuration**:
+```yaml
+gemini:
+  api-key: ${GEMINI_API_KEY:your-gemini-api-key}
+  model: gemini-2.0-flash-exp
+  temperature: 0.8
+```
+
+**CORS Configuration**:
+```yaml
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:5173
+  allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+```
+
+---
+
+### Spring Boot Build & Run Results
+
+**Build Output**:
+```
+./gradlew clean build -x test
+
+BUILD SUCCESSFUL in 5s
+6 actionable tasks: 6 executed
+```
+
+**Application Startup Log**:
+```
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.1)
+
+2025-12-30T22:36:48 INFO  --- Starting LobaiBackendApplication with PID 64111
+2025-12-30T22:36:49 INFO  --- HikariPool-1 - Start completed.
+2025-12-30T22:36:50 INFO  --- Tomcat started on port 8080 (http) with context path '/api'
+2025-12-30T22:36:50 INFO  --- Started LobaiBackendApplication in 1.83 seconds
+```
+
+**Health Check Endpoint**:
+- URL: `http://localhost:8080/api/health`
+- Method: GET
+- Response:
+```json
+{
+  "status": "UP",
+  "service": "lobai-backend",
+  "timestamp": "2025-12-30T22:36:50",
+  "version": "0.0.1-SNAPSHOT"
+}
+```
+
+---
+
+### Key Technical Decisions (Backend)
+
+#### 1. Spring Boot 3.2.1
+**Decision**: Use Spring Boot 3.x instead of 2.x
+**Rationale**:
+- Native support for Java 17+
+- Improved performance with virtual threads
+- Modern Spring Security configuration
+- Better observability features
+
+#### 2. JWT Token Expiry
+**Decision**: Access Token 15분, Refresh Token 7일
+**Rationale**:
+- Balance between security and user experience
+- Short-lived access tokens reduce attack surface
+- Refresh tokens allow seamless session extension
+- Standard industry practice for web applications
+
+#### 3. JPA DDL Auto: validate
+**Decision**: Use `validate` instead of `update` or `create-drop`
+**Rationale**:
+- Prevents accidental schema changes in production
+- Forces explicit schema management via migration scripts
+- Catches schema mismatches early
+- Professional production-ready approach
+
+#### 4. Context Path: /api
+**Decision**: All endpoints under `/api` prefix
+**Rationale**:
+- Clear separation between API and static resources
+- Standard REST API convention
+- Easier CORS and proxy configuration
+- Future-proof for API versioning (/api/v1, /api/v2)
+
+---
+
+## Database Schema Design
+
+### Tables to be Created (Next Step)
+
+#### 1. users
+```sql
+CREATE TABLE users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    username VARCHAR(100) NOT NULL,
+
+    -- Stats
+    current_hunger INT DEFAULT 80,
+    current_energy INT DEFAULT 90,
+    current_happiness INT DEFAULT 70,
+
+    -- Persona
+    current_persona_id BIGINT,
+
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_login_at TIMESTAMP,
+
+    INDEX idx_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### 2. personas (5 personas)
+```sql
+CREATE TABLE personas (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,           -- '친구', '상담사', '코치', '전문가', '유머'
+    name_en VARCHAR(50) NOT NULL,               -- 'friend', 'counselor', 'coach', 'expert', 'humor'
+    display_name VARCHAR(100) NOT NULL,         -- '친구모드'
+    system_instruction TEXT NOT NULL,           -- Gemini API 프롬프트
+    icon_emoji VARCHAR(10),                     -- '👥', '💬', '🎯', '🎓', '😄'
+    display_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE
+);
+```
+
+**Initial Data (5 Personas)**:
+1. **친구모드** (Friend 👥): Casual, empathetic, emoji usage
+2. **상담사모드** (Counselor 💬): Listening, non-judgmental, supportive
+3. **코치모드** (Coach 🎯): Goal-oriented, action-focused, motivating
+4. **전문가모드** (Expert 🎓): Accurate, logical, systematic
+5. **유머모드** (Humor 😄): Witty, lighthearted, positive energy
+
+#### 3. messages
+```sql
+CREATE TABLE messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    persona_id BIGINT NOT NULL,
+    role ENUM('user', 'bot') NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (persona_id) REFERENCES personas(id),
+    INDEX idx_user_created (user_id, created_at DESC)
+);
+```
+
+#### 4. user_stats_history
+```sql
+CREATE TABLE user_stats_history (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    hunger INT NOT NULL,
+    energy INT NOT NULL,
+    happiness INT NOT NULL,
+    action_type ENUM('feed', 'play', 'sleep', 'chat', 'decay'),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+#### 5. refresh_tokens
+```sql
+CREATE TABLE refresh_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    token VARCHAR(500) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    is_revoked BOOLEAN DEFAULT FALSE,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+**Design Document**: `docs/plans/PLAN_Backend_Database_Design.md`
 
 ---
 
@@ -268,57 +677,98 @@ const onSplineLoad = (splineApp: any) => {
 
 **Agent Used**: Refactor Agent workflow applied (read → analyze → refactor → verify)
 
+### Problem 8: Gradle Build Failures (Backend Setup)
+**Date**: 2025-12-30
+
+**Issue 1: Java Runtime Not Found**
+**Symptoms**: `Unable to locate a Java Runtime`
+
+**Solution**:
+- Installed OpenJDK 17 via Homebrew
+- Set JAVA_HOME environment variable
+```bash
+brew install openjdk@17
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+```
+
+**Issue 2: Main Class Not Found**
+**Symptoms**: `Main class name has not been configured`
+
+**Root Cause**: Source files were created outside backend directory
+
+**Solution**: Moved `src/` directory into `backend/` folder
+```bash
+mv src backend/
+```
+
+**Issue 3: Nested Backend Directory**
+**Symptoms**: `backend/backend/gradlew` path confusion
+
+**Root Cause**: Gradle wrapper files were generated in wrong location
+
+**Solution**: Consolidated files into single `backend/` directory
+```bash
+mv backend/backend/* backend/
+rmdir backend/backend
+```
+
+**Final Build Result**:
+```
+./gradlew clean build -x test
+BUILD SUCCESSFUL in 5s
+```
+
 ---
 
 ## File Changes Summary
 
-### Created Files
-- `CLAUDE.md` - Project documentation and guidance
-- `.env.local.example` - Environment variable template
-- `SESSION_CONTEXT.md` - This file
+### Created Files (Session 4 - Backend)
+
+#### MCP Configuration
+- `.claude/mcp-configs/mysql-setup.md` - MySQL MCP installation guide
+- `.claude/mcp-configs/github-setup.md` - GitHub MCP installation guide
+- `.claude/mcp-configs/playwright-setup.md` - Playwright MCP installation guide
+
+#### Backend Project Structure
+- `backend/build.gradle` - Gradle build configuration
+- `backend/settings.gradle` - Project settings
+- `backend/.gitignore` - Git ignore rules
+- `backend/gradlew` - Gradle wrapper (Unix)
+- `backend/gradlew.bat` - Gradle wrapper (Windows)
+- `backend/gradle/` - Gradle wrapper files
+
+#### Java Source Files
+- `backend/src/main/java/com/lobai/LobaiBackendApplication.java` - Main application class
+- `backend/src/main/java/com/lobai/config/CorsConfig.java` - CORS configuration
+- `backend/src/main/java/com/lobai/config/SecurityConfig.java` - Spring Security configuration
+- `backend/src/main/java/com/lobai/controller/HealthController.java` - Health check endpoint
+
+#### Configuration Files
+- `backend/src/main/resources/application.yml` - Application properties
+
+#### Package Directories (Empty, Ready for Development)
+- `backend/src/main/java/com/lobai/dto/request/`
+- `backend/src/main/java/com/lobai/dto/response/`
+- `backend/src/main/java/com/lobai/entity/`
+- `backend/src/main/java/com/lobai/exception/`
+- `backend/src/main/java/com/lobai/repository/`
+- `backend/src/main/java/com/lobai/security/`
+- `backend/src/main/java/com/lobai/service/`
+- `backend/src/test/java/com/lobai/`
 
 ### Modified Files
 
-#### index.html
-**Key Changes**:
-- Font imports: DM Sans + Syne
-- CSS variables for color system
-- Navbar auto-hide animation styles
-- Button styles (btn-primary, btn-secondary)
-- Scroll animation keyframes
-- Custom scrollbar styling
+#### Claude Code Configuration
+- `~/Library/Application Support/Claude/claude_desktop_config.json` - Added MySQL, GitHub, Playwright MCPs
 
-**Code Reference**: Lines 9-11 (fonts), 13-18 (CSS vars), 34-51 (navbar), 130-162 (buttons)
+#### MCP Configs README
+- `.claude/mcp-configs/README.md` - Added documentation for 3 new MCP servers
 
-#### index.tsx
-**Major Changes**:
-- Added Spline integration state management
-- Implemented navbar auto-hide logic
-- Created Spline onLoad handler to reference objects
-- Implemented handleCharacterClick for state toggling
-- Changed 3D container from iframe to Spline component
-- Added Features, How It Works, CTA, and Footer sections
-- Made layout scrollable (removed h-screen constraints)
-- **[2025-12-30]** Fixed page scroll bug by using container scroll instead of scrollIntoView
-
-**Key Functions**:
-- `onSplineLoad()` - Lines 136-156 - Initializes 3D object references
-- `handleCharacterClick()` - Lines 158-177 - Toggles character state
-- Navbar auto-hide effect - Lines 112-134
-- **[2025-12-30]** Chat scroll effect - Lines 144-149 - Scrolls chat container only
-
-**State Variables Added**:
-```typescript
-const [isCrying, setIsCrying] = useState(false);
-const splineRef = useRef<any>(null);
-const mouthObjRef = useRef<any>(null);
-const eyesObjRef = useRef<any>(null);
-const [navbarVisible, setNavbarVisible] = useState(true);
-const chatContainerRef = useRef<HTMLDivElement>(null);  // [2025-12-30] Added
-```
-
-**Removed Variables** (2025-12-30):
-- `hasScrolledToChat` ref - No longer needed with new scroll approach
+#### Frontend Files (Previous Sessions)
+- `index.html` - Scroll fixes, Spline rendering fixes, font imports
+- `index.tsx` - Chat scroll container fix, navbar auto-hide, Spline integration
+- `CLAUDE.md` - Project documentation
+- `.env.local.example` - Environment variable template
 
 ---
 
@@ -361,23 +811,62 @@ if (mouthObjRef.current && eyesObjRef.current) {
 
 **Implementation**: Event listeners for scroll, mousemove, and mouseleave
 
+### Backend API Endpoints
+
+**Current**:
+- `GET /api/health` - Health check endpoint
+
+**Planned (Next Phase)**:
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login (JWT tokens)
+- `POST /api/auth/refresh` - Refresh access token
+- `POST /api/auth/logout` - Logout
+- `GET /api/messages` - Get chat history
+- `POST /api/messages` - Send message + AI response
+- `GET /api/stats` - Get current stats
+- `PUT /api/stats` - Update stats (feed/play/sleep)
+- `GET /api/personas` - Get 5 personas
+- `PUT /api/personas/current` - Change current persona
+
 ---
 
 ## Environment Setup
 
-### Required Environment Variables
+### Frontend Environment Variables
 Create `.env.local` file:
 ```bash
 GEMINI_API_KEY=your_actual_api_key_here
 ```
 
-### Development Server
+### Backend Environment Variables
+Create `backend/.env` file (optional, currently using application.yml):
+```bash
+DB_PASSWORD=lobai_dev_password
+JWT_SECRET=your-very-secure-secret-key-at-least-256-bits-long
+GEMINI_API_KEY=your_gemini_api_key
+SPRING_PROFILES_ACTIVE=dev
+```
+
+### Development Servers
+
+**Frontend**:
 ```bash
 npm install
 npm run dev  # Runs on http://localhost:3000
 ```
 
-**Background Task**: Dev server running as task ID `bdba4db`
+**Backend**:
+```bash
+cd backend
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+./gradlew bootRun  # Runs on http://localhost:8080
+```
+
+**MySQL**:
+```bash
+brew services start mysql@8.0
+mysql -u lobai_user -p lobai_db  # password: lobai_dev_password
+```
 
 ---
 
@@ -451,28 +940,53 @@ border-radius: 24px;
 - Google Fonts with preconnect for faster font loading
 - Spline runtime loaded as npm package (bundled)
 
+### Backend Performance
+- **HikariCP Connection Pool**: Efficient database connection management
+- **JPA Query Optimization**: Use `@Query` with JPQL for complex queries
+- **JWT Stateless Auth**: No session storage, scales horizontally
+- **Spring Boot DevTools**: Hot reload during development
+
 ---
 
 ## Known Limitations & Future Improvements
 
 ### Current Limitations
+
+**Frontend**:
 1. No state persistence - character state resets on page reload
 2. Only two states implemented (default + cry)
 3. No transition animations between states
 4. Stats system not connected to character state
 5. No backend integration yet
 
+**Backend**:
+1. No JPA entities implemented yet
+2. No JWT authentication implemented (all endpoints permitAll)
+3. No database schema applied
+4. No service layer logic
+5. No exception handling
+
 ### Suggested Improvements
-1. **State Persistence**: Save character state to localStorage or backend
-2. **More States**: Add happy, surprised, angry expressions
-3. **State Transitions**: Smooth animations between state changes
-4. **Stats Integration**: Character expression changes based on hunger/energy/happiness
-5. **Backend Integration**: Connect to Spring Boot backend as per LobAI_PRD_v3.md
-6. **Database**: Store conversation history and affinity scores in MySQL
-7. **Authentication**: Add login/signup functionality to navbar
-8. **Responsive Design**: Optimize for mobile viewport sizes
-9. **Performance**: Consider lazy-loading Spline for faster initial page load
-10. **Analytics**: Track user interactions with character states
+
+**Phase 1 (Week 1-2)**:
+1. **Database Schema**: Apply SQL migrations to create tables
+2. **JPA Entities**: Create User, Persona, Message, UserStatsHistory, RefreshToken entities
+3. **JWT Authentication**: Implement JwtTokenProvider, AuthController
+4. **Basic CRUD**: UserService, MessageService, PersonaService
+
+**Phase 2 (Week 3-4)**:
+5. **Frontend Integration**: Connect React to Spring Boot APIs
+6. **Stats Integration**: Character expression changes based on hunger/energy/happiness
+7. **Persona System**: 5 personas with Gemini API integration
+8. **Message History**: Load previous conversations from database
+
+**Phase 3 (Future)**:
+9. **State Persistence**: Save character state to localStorage/backend
+10. **More States**: Add happy, surprised, angry expressions
+11. **State Transitions**: Smooth animations between state changes
+12. **Analytics**: Track user interactions and AI affinity scores
+13. **Responsive Design**: Optimize for mobile viewport sizes
+14. **Performance**: Lazy-load Spline for faster initial page load
 
 ---
 
@@ -504,7 +1018,7 @@ border-radius: 24px;
 - **Transparent Iframes**: Use `!important` flag for iframe background overrides
 - **Hardware Acceleration**: Use `transform` properties instead of `top`/`left` for animations
 
-### Scroll Behavior Patterns (2025-12-30)
+### Scroll Behavior Patterns
 - **scrollIntoView() Behavior**: Always scrolls the **entire page** to bring element into view, even if element is inside a scrollable container
 - **Container Scrolling**: Use `element.scrollTop = element.scrollHeight` to scroll only within a specific container
 - **When to Use Each**:
@@ -513,10 +1027,26 @@ border-radius: 24px;
 - **React Refs for Containers**: Need separate refs for both the container (`chatContainerRef`) and the scroll target (`chatEndRef`)
 - **Pattern**: Container ref controls scroll position, end marker ref provides scroll target
 
+### Spring Boot Best Practices
+- **Package Structure**: Separate concerns (controller, service, repository, entity, dto, config)
+- **DTO Pattern**: Never expose entities directly in API responses
+- **Service Layer**: All business logic in service layer, thin controllers
+- **Exception Handling**: Global exception handler with @ControllerAdvice
+- **Configuration**: Externalize sensitive data (application.yml, environment variables)
+- **Testing**: Unit tests for services, integration tests for controllers
+
+### Database Design Patterns
+- **utf8mb4 Charset**: Required for emoji and special character support
+- **Soft Deletes**: Consider `is_deleted` flag instead of hard deletes
+- **Timestamps**: Always include `created_at` and `updated_at`
+- **Indexes**: Add indexes on foreign keys and frequently queried columns
+- **Constraints**: Use CHECK constraints for valid ranges (stats 0-100)
+
 ---
 
 ## Testing Checklist
 
+**Frontend** ✅:
 - [✓] Dev server runs without errors
 - [✓] 3D character loads correctly
 - [✓] Character state changes on click
@@ -540,6 +1070,29 @@ border-radius: 24px;
 - [✓] System Status buttons don't scroll the page
 - [✓] AI message responses don't scroll the page
 
+**Backend** ⏳ (In Progress):
+- [✓] Spring Boot application starts successfully
+- [✓] MySQL database connection established
+- [✓] Health check endpoint returns 200 OK
+- [✓] Gradle build completes without errors
+- [✓] CORS configuration allows frontend requests
+- [ ] Database schema applied
+- [ ] 5 personas inserted into database
+- [ ] JWT token generation works
+- [ ] User registration endpoint functional
+- [ ] User login endpoint functional
+- [ ] Message persistence works
+- [ ] Stats update works
+- [ ] Persona switching works
+
+**MCP Servers** ⚠️ (Requires Claude Code Restart):
+- [✓] MySQL MCP configured in claude_desktop_config.json
+- [✓] GitHub MCP configured in claude_desktop_config.json
+- [✓] Playwright MCP configured in claude_desktop_config.json
+- [ ] MySQL MCP responds to queries (requires restart)
+- [ ] GitHub MCP responds to commands (requires token)
+- [ ] Playwright MCP responds to test commands (requires restart)
+
 ---
 
 ## Related Documentation
@@ -547,6 +1100,9 @@ border-radius: 24px;
 - **Project Requirements**: `LobAI_PRD_v3.md` - Full product vision and roadmap
 - **Development Guide**: `CLAUDE.md` - Codebase architecture and setup instructions
 - **Environment Template**: `.env.local.example` - Required API keys
+- **Backend Design Plan**: `docs/plans/PLAN_Backend_Database_Design.md` - Database schema and implementation plan
+- **AI Infrastructure Review**: `docs/AI_INFRASTRUCTURE_REVIEW.md` - Agents, Skills, MCP servers analysis
+- **Automated Workflow**: `docs/workflows/AUTOMATED_WORKFLOW.md` - AI-powered development workflows
 
 ---
 
@@ -627,28 +1183,155 @@ border-radius: 24px;
 
 **Session Time**: ~30-45 min
 
+### Session 4: Backend Infrastructure Setup (2025-12-30) ⭐ NEW
+1. **MCP Server Installation** (45-60 min)
+   - Installed MySQL 8.0.44 via Homebrew
+   - Created lobai_db database and lobai_user
+   - Configured MySQL MCP server
+   - Added GitHub MCP server (requires token generation)
+   - Installed Playwright + added Playwright MCP server
+   - Updated claude_desktop_config.json with 3 MCP servers
+
+2. **Spring Boot Project Creation** (30-45 min)
+   - Created backend directory structure
+   - Generated build.gradle with dependencies
+   - Created application.yml configuration
+   - Set up package structure (config, controller, dto, entity, etc.)
+   - Created main application class
+   - Added CORS and Security configuration
+   - Created health check endpoint
+
+3. **Build & Run Testing** (20-30 min)
+   - Installed Gradle
+   - Installed OpenJDK 17
+   - Fixed nested directory structure issues
+   - Successfully built project (BUILD SUCCESSFUL)
+   - Ran Spring Boot application (started in 1.83s)
+   - Verified health check endpoint works
+   - Stopped application
+
+4. **Documentation & Planning** (15-20 min)
+   - Created MCP setup guides (mysql-setup.md, github-setup.md, playwright-setup.md)
+   - Updated .claude/mcp-configs/README.md
+   - Prepared for database schema creation (next step)
+
+**Session Time**: ~2-2.5 hours
+
+**Total Project Time**: ~6-7 hours across 4 sessions
+
+---
+
+## Next Steps
+
+### Immediate (Git & Database)
+1. **Git Commit**: Commit Spring Boot project creation
+   - Branch: `feature/backend-setup` or directly to `master`
+   - Commit message: "Add Spring Boot backend with MySQL MCP integration"
+
+2. **Database Schema Creation**:
+   - Create `backend/src/main/resources/db/schema.sql`
+   - Apply schema to MySQL database
+   - Verify with MySQL MCP: "lobai_db 데이터베이스 테이블 목록 조회"
+
+3. **Initial Data Insertion**:
+   - Create `backend/src/main/resources/db/data.sql`
+   - Insert 5 personas with system instructions
+   - Verify with MySQL MCP: "personas 테이블 데이터 조회"
+
+### Phase 1 - Week 1 (JWT + Entities)
+4. **JPA Entity Creation** (Backend Developer Agent):
+   - User.java
+   - Persona.java
+   - Message.java
+   - UserStatsHistory.java
+   - RefreshToken.java
+
+5. **JWT Authentication System**:
+   - JwtTokenProvider.java (token generation/validation)
+   - JwtAuthenticationFilter.java (request filtering)
+   - CustomUserDetailsService.java (Spring Security integration)
+
+6. **Authentication Controller**:
+   - POST /api/auth/register
+   - POST /api/auth/login
+   - POST /api/auth/refresh
+   - POST /api/auth/logout
+
+### Phase 1 - Week 2 (Core Features)
+7. **Repository Layer**:
+   - UserRepository extends JpaRepository
+   - MessageRepository extends JpaRepository
+   - PersonaRepository extends JpaRepository
+   - UserStatsHistoryRepository extends JpaRepository
+   - RefreshTokenRepository extends JpaRepository
+
+8. **Service Layer**:
+   - AuthService (registration, login, token refresh)
+   - MessageService (save, retrieve, Gemini API integration)
+   - StatsService (get, update, history)
+   - PersonaService (list, get, switch)
+
+9. **Controller Layer**:
+   - MessageController (GET /messages, POST /messages)
+   - StatsController (GET /stats, PUT /stats)
+   - PersonaController (GET /personas, PUT /personas/current)
+
+### Phase 1 - Week 3 (Frontend Integration)
+10. **Frontend API Integration**:
+    - Replace Gemini direct call with backend API
+    - Add login/signup UI
+    - Persist JWT tokens in localStorage
+    - Load message history on login
+    - Sync stats with backend
+
+11. **Testing**:
+    - Unit tests for services (Backend Test Strategy)
+    - Integration tests for controllers (MockMvc)
+    - E2E tests with Playwright MCP
+
+### Phase 1 - Week 4 (Deployment Prep)
+12. **Production Readiness**:
+    - Environment-specific configs (dev, prod)
+    - Security hardening (JWT secret from env)
+    - HTTPS configuration
+    - Logging and monitoring
+    - Error handling and validation
+
+**Design Document**: `docs/plans/PLAN_Backend_Database_Design.md`
+
 ---
 
 ## Final Notes
 
-- All critical UI/UX bugs resolved (including chat scroll bug - 2025-12-30)
-- Page loads correctly at top position
-- Chat messages scroll correctly within container (not entire page)
-- 3D character renders smoothly without visual artifacts
-- Project ready for next development phase
-- Backend integration and database setup remain as next major milestones
-- Consider implementing state persistence before adding more character states
-- Review responsive design for mobile devices before public launch
+- ✅ All critical UI/UX bugs resolved (including chat scroll bug - 2025-12-30)
+- ✅ Page loads correctly at top position
+- ✅ Chat messages scroll correctly within container (not entire page)
+- ✅ 3D character renders smoothly without visual artifacts
+- ✅ Spring Boot backend infrastructure created
+- ✅ MySQL database configured and connected
+- ✅ MCP servers installed (MySQL, GitHub, Playwright)
+- ⏳ Database schema creation pending
+- ⏳ JWT authentication implementation pending
+- ⏳ Frontend-backend integration pending
 
 ### Session Continuity Notes
 - **Session 1-2**: Continued from previous conversation that ran out of context. Conversation summary preserved.
 - **Session 3 (2025-12-30)**: New session for chat scroll bug fix. Applied Refactor Agent workflow.
+- **Session 4 (2025-12-30)**: Backend infrastructure setup. Installed MCP servers, created Spring Boot project.
 
-### Dev Server Status
-- **Background Task**: Running on localhost:3000 (task ID: bb0f92c)
-- **Status**: Ready for testing
+### Development Environment Status
+- **Frontend Dev Server**: Ready to start on localhost:3000
+- **Backend Dev Server**: Ready to start on localhost:8080 (Spring Boot)
+- **MySQL Server**: Running on localhost:3306 (lobai_db)
+- **MCP Servers**: Configured, requires Claude Code restart to activate
+
+### Security Notes
+- ⚠️ MySQL password currently in application.yml (development only)
+- ⚠️ GitHub token required for GitHub MCP (generate at github.com/settings/tokens)
+- ⚠️ JWT secret in application.yml needs to be changed for production
+- ⚠️ Gemini API key should be moved to environment variable
 
 ---
 
-**Status: All features implemented and all critical bugs fixed. Sessions completed successfully.**
-**Last Updated**: 2025-12-30
+**Status: Frontend complete and tested. Backend infrastructure ready. Database schema creation next.**
+**Last Updated**: 2025-12-30 22:40 KST

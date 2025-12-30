@@ -91,7 +91,58 @@ MCP를 사용하면 Claude Code가 다음과 같은 작업을 수행할 수 있�
 
 ---
 
-### 4. Filesystem MCP (Built-in)
+### 4. Playwright MCP (Recommended 🔥)
+
+**Purpose**: E2E 테스트 및 UI 자동화
+
+**Status**: ✅ 설치 권장 (워크플로우 자동화 필수)
+
+**What it does**:
+- E2E 테스트 자동화 (회원가입, 로그인, 메시지 전송)
+- UI 요소 검증 (버튼, 입력 필드, 스크린샷)
+- 크로스 브라우저 테스트 (Chrome, Firefox, Safari)
+- 성능 측정 (페이지 로드 시간)
+- 시각적 회귀 테스트
+
+**Use Cases**:
+```
+"Playwright로 로그인 플로우 테스트해줘"
+"Stats 패널이 제대로 표시되는지 확인해줘"
+"Chrome, Firefox, Safari에서 모두 테스트해줘"
+"페이지 로드 성능 측정해줘"
+```
+
+**Setup Guide**: [playwright-setup.md](./playwright-setup.md)
+
+---
+
+### 5. GitHub MCP (Recommended 🔥)
+
+**Purpose**: PR/Issue 자동화 및 워크플로우 통합
+
+**Status**: ✅ 설치 권장 (워크플로우 자동화 필수)
+
+**What it does**:
+- PR 자동 생성 (제목, 본문, 라벨)
+- PR 리뷰 자동화 (코멘트 작성)
+- Issue 관리 (조회, 생성, 코멘트)
+- Commit 분석 (히스토리 요약)
+- 브랜치 관리 (생성, 삭제, 비교)
+
+**Use Cases**:
+```
+"GitHub MCP로 PR 생성해줘"
+"PR #5 리뷰해줘"
+"최근 커밋 10개 분석해줘"
+"Issue #12에 진행 상황 코멘트해줘"
+"테스트 결과를 PR에 코멘트해줘"
+```
+
+**Setup Guide**: [github-setup.md](./github-setup.md)
+
+---
+
+### 6. Filesystem MCP (Built-in)
 
 **Purpose**: 로컬 파일 시스템 접근
 
