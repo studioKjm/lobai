@@ -46,9 +46,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UserDetails userDetails = customUserDetailsService.loadUserById(userId);
 
                 // Spring Security 인증 객체 생성
+                // Principal을 userId String으로 설정하여 Authentication.getName()이 userId를 반환하도록 함
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
-                                userDetails,
+                                String.valueOf(userId),  // Principal을 userId로 설정
                                 null,
                                 userDetails.getAuthorities()
                         );
