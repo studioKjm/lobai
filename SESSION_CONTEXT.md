@@ -1215,7 +1215,12 @@ border-radius: 24px;
    - Updated .claude/mcp-configs/README.md
    - Prepared for database schema creation (next step)
 
-**Session Time**: ~2-2.5 hours
+5. **Database Schema Creation** (20-30 min)
+   - Created schema.sql with 5 tables (personas, users, messages, user_stats_history, refresh_tokens)
+   - Created data.sql with 5 persona initial data
+   - Git commit: "Add Spring Boot backend infrastructure and MCP servers"
+
+**Session Time**: ~2.5-3 hours
 
 **Total Project Time**: ~6-7 hours across 4 sessions
 
@@ -1223,20 +1228,18 @@ border-radius: 24px;
 
 ## Next Steps
 
-### Immediate (Git & Database)
-1. **Git Commit**: Commit Spring Boot project creation
-   - Branch: `feature/backend-setup` or directly to `master`
-   - Commit message: "Add Spring Boot backend with MySQL MCP integration"
+### Immediate (Database Application) ⭐ CURRENT
+1. **Apply Database Schema**:
+   - Run schema.sql on MySQL database
+   - Verify tables created: personas, users, messages, user_stats_history, refresh_tokens
 
-2. **Database Schema Creation**:
-   - Create `backend/src/main/resources/db/schema.sql`
-   - Apply schema to MySQL database
-   - Verify with MySQL MCP: "lobai_db 데이터베이스 테이블 목록 조회"
-
-3. **Initial Data Insertion**:
-   - Create `backend/src/main/resources/db/data.sql`
-   - Insert 5 personas with system instructions
+2. **Insert Initial Data**:
+   - Run data.sql to insert 5 personas
    - Verify with MySQL MCP: "personas 테이블 데이터 조회"
+
+3. **Git Commit**:
+   - Commit schema.sql and data.sql files
+   - Commit message: "Add MySQL database schema and initial persona data"
 
 ### Phase 1 - Week 1 (JWT + Entities)
 4. **JPA Entity Creation** (Backend Developer Agent):
@@ -1310,7 +1313,9 @@ border-radius: 24px;
 - ✅ Spring Boot backend infrastructure created
 - ✅ MySQL database configured and connected
 - ✅ MCP servers installed (MySQL, GitHub, Playwright)
-- ⏳ Database schema creation pending
+- ✅ Database schema SQL files created (schema.sql, data.sql)
+- ✅ Git commit completed (backend + MCP setup)
+- ⏳ Database schema application to MySQL pending
 - ⏳ JWT authentication implementation pending
 - ⏳ Frontend-backend integration pending
 
@@ -1333,5 +1338,5 @@ border-radius: 24px;
 
 ---
 
-**Status: Frontend complete and tested. Backend infrastructure ready. Database schema creation next.**
-**Last Updated**: 2025-12-30 22:40 KST
+**Status: Frontend complete. Backend infrastructure ready. SQL files created. Schema application next.**
+**Last Updated**: 2025-12-30 23:05 KST
