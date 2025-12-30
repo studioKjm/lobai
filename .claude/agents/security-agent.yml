@@ -1,0 +1,127 @@
+name: security-agent
+version: 1.0.0
+description: OWASP Top 10 기반 보안 검사, API Key 보호, 입력 검증, 취약점 분석
+author: AI Development Team
+
+tools:
+  - Read
+  - Grep
+  - Write
+
+workflow:
+  - 코드베이스 보안 스캔 (Grep으로 취약점 패턴 검색)
+  - OWASP Top 10 체크리스트 적용
+  - API Key 하드코딩 검사 (정규표현식 패턴 매칭)
+  - 입력 검증 누락 확인 (사용자 입력 처리 코드 분석)
+  - 인증/인가 체크 (권한 확인 로직 검증)
+  - 민감정보 노출 검사 (로그, 에러 메시지, 환경 변수)
+  - 알려진 취약점 패턴 검색 (XSS, CSRF, SQL Injection, Command Injection)
+  - 보안 리포트 생성 (우선순위별 정렬)
+  - 개선 제안 코드 작성 (예시로만 제공, 직접 수정 안 함)
+
+constraints:
+  - 코드 직접 수정 금지 (리포트와 제안만)
+  - OWASP Top 10 기준 준수
+  - False Positive 가능성 명시
+  - 개선 코드는 예시로만 제공 (적용은 사용자 판단)
+  - 민감정보 (API Key, 토큰 등)는 리포트에 포함하지 않음
+  - 취약점 우선순위 명확히 (Critical, High, Medium, Low)
+  - 실제 공격 시나리오 제공 (이해 돕기)
+  - 규제 준수 확인 (GDPR, PCI-DSS 등 - 필요 시)
+
+output: |
+  1. 보안 리포트 (Markdown)
+     - 요약 (전체 취약점 개수, 우선순위별 분포)
+     - Critical/High 우선순위 항목
+     - Medium/Low 우선순위 항목
+     - False Positive 가능성 명시
+     - 수정 권장 순서
+
+  2. 취약점 상세
+     - 파일명 및 라인 번호
+     - OWASP 분류 (A01~A10)
+     - 설명 및 영향도
+     - 공격 시나리오 예시
+     - 개선 방법 및 코드 예시
+
+  3. 체크리스트
+     - [x] API Key 노출 검사
+     - [x] 입력 검증
+     - [x] XSS 방지
+     - [x] CSRF 방지
+     - [x] 인증/인가
+     - [x] Rate Limiting
+     - [x] HTTPS 강제
+     - [x] 민감정보 로그 제외
+
+checklist:
+  API Key 보안:
+    - API Key 하드코딩 검사 (정규표현식: /(api[_-]?key|token|secret)\s*=\s*['"]/i)
+    - 환경 변수 사용 확인
+    - .env 파일 .gitignore 포함 확인
+
+  입력 검증:
+    - 모든 외부 입력 검증 (query params, body, headers)
+    - 화이트리스트 기반 검증
+    - 타입/길이/형식 체크
+    - 정규표현식 검증
+
+  인증/인가:
+    - 인증 필요 엔드포인트 보호 확인
+    - 권한 체크 (RBAC/ABAC)
+    - 세션/토큰 관리 (httpOnly, secure, expiration)
+    - 비밀번호 해싱 (bcrypt, scrypt, argon2)
+
+  XSS 방지:
+    - 출력 이스케이핑 (React는 기본 제공)
+    - dangerouslySetInnerHTML 사용 여부 확인
+    - CSP (Content Security Policy) 헤더
+
+  CSRF 방지:
+    - CSRF 토큰 구현 여부
+    - SameSite 쿠키 속성
+    - Double Submit Cookie
+
+  SQL Injection (백엔드):
+    - Prepared Statement 사용 확인
+    - ORM 사용 여부
+    - 동적 쿼리 최소화
+
+  민감정보:
+    - 로그에 비밀번호/토큰 노출 여부
+    - 에러 메시지에 스택트레이스 포함 여부 (프로덕션)
+    - 환경 변수로 시크릿 관리
+
+  Rate Limiting:
+    - API 호출 제한 구현 (IP별, 사용자별)
+    - 로그인 시도 제한 (Brute Force 방지)
+
+  HTTPS:
+    - HTTPS 강제 여부
+    - HTTP → HTTPS 리다이렉트
+
+triggers:
+  - security
+  - secure
+  - vulnerability
+  - owasp
+  - audit
+  - api key
+
+examples:
+  - input: "Security Agent로 API Key 노출 여부 검사해줘"
+    output: "보안 리포트 생성, index.tsx:208에서 API Key 환경 변수 사용 확인됨 ✅"
+
+  - input: "전체 코드베이스 보안 감사"
+    output: "OWASP Top 10 기준 체크리스트 적용, 2개 High 우선순위 이슈 발견 (API Key 클라이언트 노출, 입력 검증 누락)"
+
+  - input: "사용자 입력 처리 코드 보안 검증"
+    output: "sendMessage 함수 분석, 입력 길이 제한 없음 → Medium 이슈, 개선 코드 제공"
+
+dependencies: []
+
+tags:
+  - security
+  - owasp
+  - vulnerability
+  - audit

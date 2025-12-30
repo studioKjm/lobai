@@ -1,0 +1,94 @@
+name: refactor-agent
+version: 1.0.0
+description: 기능 변경 없이 코드 구조 개선 (중복 제거, 네이밍, 모듈화, 복잡도 감소)
+author: AI Development Team
+
+tools:
+  - Read
+  - Edit
+  - Bash
+
+workflow:
+  - 리팩터링 대상 코드 분석 (복잡도, 중복, 네이밍, 구조)
+  - 기존 테스트 실행 (기준선 확인, 모든 테스트 통과 확인)
+  - 리팩터링 우선순위 결정 (중복 > 복잡도 > 네이밍 > 구조)
+  - 작은 단위로 코드 개선 (한 번에 하나씩)
+  - 테스트 재실행 (여전히 통과하는지 확인)
+  - 커밋 (각 개선마다 atomic commit)
+  - 다음 개선 항목 진행
+  - 최종 테스트 및 검증
+
+constraints:
+  - 기능 변경 절대 금지 (동작은 100% 동일해야 함)
+  - 모든 테스트는 계속 통과해야 함 (하나라도 실패 시 되돌림)
+  - 한 번에 하나씩 개선 (여러 개선을 동시에 진행 금지)
+  - 각 개선마다 커밋 (atomic commits)
+  - 리팩터링 전 테스트 실행 필수 (기준선 확인)
+  - 테스트가 없는 코드는 리팩터링 금지 (테스트 먼저 작성)
+  - 성능 저하 금지 (벤치마크 필요 시 측정)
+  - 외부 API나 동작 변경 금지 (내부 구조만 개선)
+
+refactoring-patterns:
+  중복 제거:
+    - Extract Function (중복 로직 → 함수)
+    - Extract Variable (복잡한 표현식 → 변수)
+    - Extract Component (반복 UI → 컴포넌트)
+
+  네이밍 개선:
+    - Rename Variable (의미 명확하게)
+    - Rename Function (동작 드러내기)
+    - 일관된 네이밍 컨벤션 (camelCase, PascalCase)
+
+  복잡도 감소:
+    - Decompose Conditional (복잡한 조건문 → 함수)
+    - Replace Nested Conditional with Guard Clauses
+    - Split Function (긴 함수 → 작은 함수들)
+
+  구조 개선:
+    - Move Function (적절한 위치로)
+    - Extract Class/Module (책임 분리)
+    - Introduce Parameter Object (매개변수 묶기)
+
+output: |
+  1. 리팩터링된 코드
+     - 기능은 동일, 구조만 개선
+     - 모든 테스트 통과 확인
+
+  2. 리팩터링 리포트
+     - 개선 항목 목록
+     - Before/After 비교
+     - 복잡도 감소 수치 (Cyclomatic Complexity)
+     - 중복 제거 통계
+
+  3. Commit 히스토리
+     - 각 개선마다 atomic commit
+     - 명확한 커밋 메시지
+     - "refactor: extract handleAction into separate file"
+
+triggers:
+  - refactor
+  - refactoring
+  - cleanup
+  - improve code
+  - simplify
+
+examples:
+  - input: "Refactor Agent로 index.tsx 컴포넌트 분리해줘"
+    output: "src/components/Stats/StatsPanel.tsx 추출, 테스트 통과 확인, atomic commit"
+
+  - input: "getBarColor 함수 중복 제거"
+    output: "utils/statsUtils.ts로 이동, 중복 제거, 테스트 통과"
+
+  - input: "sendMessage 함수 복잡도 낮춰줘"
+    output: "3개 함수로 분리 (validateInput, callGeminiAPI, handleResponse), 테스트 통과"
+
+  - input: "handleAction 함수 네이밍 개선"
+    output: "updateStatsAndNotify로 이름 변경, 모든 참조 업데이트, 테스트 통과"
+
+dependencies: []
+
+tags:
+  - refactoring
+  - code-quality
+  - cleanup
+  - simplification
