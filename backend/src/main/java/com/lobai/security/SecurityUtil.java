@@ -26,6 +26,11 @@ public class SecurityUtil {
 
         Object principal = authentication.getPrincipal();
 
+        // JwtAuthenticationFilter에서 principal을 String(userId)로 설정
+        if (principal instanceof String) {
+            return Long.parseLong((String) principal);
+        }
+
         if (principal instanceof UserDetails) {
             // UserDetails의 username은 실제로는 email이므로 사용 불가
             // Authentication의 name을 사용 (JwtAuthenticationFilter에서 설정한 userId)
