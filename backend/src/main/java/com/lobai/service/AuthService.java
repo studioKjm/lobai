@@ -4,11 +4,13 @@ import com.lobai.dto.request.LoginRequest;
 import com.lobai.dto.request.RefreshTokenRequest;
 import com.lobai.dto.request.RegisterRequest;
 import com.lobai.dto.response.AuthResponse;
+import com.lobai.dto.response.UserResponse;
 import com.lobai.entity.RefreshToken;
 import com.lobai.entity.User;
 import com.lobai.repository.RefreshTokenRepository;
 import com.lobai.repository.UserRepository;
 import com.lobai.security.JwtTokenProvider;
+import com.lobai.security.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -222,5 +224,27 @@ public class AuthService {
     public void revokeAllUserTokens(Long userId) {
         refreshTokenRepository.revokeAllByUserId(userId);
         log.info("All refresh tokens revoked for user ID: {}", userId);
+    }
+
+    /**
+     * 현재 인증된 사용자의 정보 조회
+     *
+     * @return 사용자 정보
+     */
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUser() {
+        Long userId = SecurityUtil.getCurrentUserId();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+
+        return UserResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .currentHunger(user.getCurrentHunger())
+                .currentEnergy(user.getCurrentEnergy())
+                .currentHappiness(user.getCurrentHappiness())
+                .currentPersonaId(user.getCurrentPersona() != null ? user.getCurrentPersona().getId() : null)
+                .build();
     }
 }

@@ -5,6 +5,7 @@ import com.lobai.dto.request.RefreshTokenRequest;
 import com.lobai.dto.request.RegisterRequest;
 import com.lobai.dto.response.ApiResponse;
 import com.lobai.dto.response.AuthResponse;
+import com.lobai.dto.response.UserResponse;
 import com.lobai.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -85,5 +86,20 @@ public class AuthController {
 
         return ResponseEntity
                 .ok(ApiResponse.success("로그아웃되었습니다", null));
+    }
+
+    /**
+     * 현재 인증된 사용자 정보 조회
+     *
+     * GET /api/auth/me
+     */
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser() {
+        log.info("Get current user request received");
+
+        UserResponse response = authService.getCurrentUser();
+
+        return ResponseEntity
+                .ok(ApiResponse.success(response));
     }
 }
