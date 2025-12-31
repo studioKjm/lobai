@@ -9,7 +9,10 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
 import java.util.Collections;
+import java.util.List;
 
 /**
  * CustomUserDetailsService
@@ -35,10 +38,15 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
+        // 권한 설정 (ROLE_ prefix 추가 필요)
+        List<SimpleGrantedAuthority> authorities = List.of(
+                new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
+        );
+
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
-                .authorities(Collections.emptyList())  // 현재는 권한 없음 (Phase 2에서 추가)
+                .authorities(authorities)
                 .accountExpired(false)
                 .accountLocked(!user.getIsActive())
                 .credentialsExpired(false)
@@ -58,10 +66,15 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userId));
 
+        // 권한 설정 (ROLE_ prefix 추가 필요)
+        List<SimpleGrantedAuthority> authorities = List.of(
+                new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
+        );
+
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
-                .authorities(Collections.emptyList())
+                .authorities(authorities)
                 .accountExpired(false)
                 .accountLocked(!user.getIsActive())
                 .credentialsExpired(false)

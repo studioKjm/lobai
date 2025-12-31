@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * MessageRepository
@@ -64,4 +65,36 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
      */
     @Query("SELECT m FROM Message m WHERE m.user.id = :userId ORDER BY m.createdAt DESC LIMIT 1")
     Message findLatestMessageByUserId(@Param("userId") Long userId);
+
+    // ==================== Admin Statistics ====================
+
+    /**
+     * 특정 시간 이후 생성된 메시지 수
+     */
+    long countByCreatedAtAfter(LocalDateTime since);
+
+    /**
+     * 역할별 메시지 수 (role은 String으로 받음: "user" 또는 "bot")
+     */
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.role = :role")
+    long countByRole(@Param("role") String role);
+
+    /**
+     * 특정 역할의 특정 기간 메시지 수
+     */
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.role = :role AND m.createdAt BETWEEN :start AND :end")
+    long countByRoleAndCreatedAtBetween(@Param("role") String role,
+                                         @Param("start") LocalDateTime start,
+                                         @Param("end") LocalDateTime end);
+
+    /**
+     * 가장 인기있는 페르소나 조회 (persona_id, name, message_count)
+     * Object[] = {personaId, personaName, messageCount}
+     */
+    @Query("SELECT m.persona.id, m.persona.name, COUNT(m) " +
+           "FROM Message m " +
+           "GROUP BY m.persona.id, m.persona.name " +
+           "ORDER BY COUNT(m) DESC " +
+           "LIMIT 1")
+    Optional<Object[]> findMostPopularPersona();
 }

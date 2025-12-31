@@ -65,7 +65,11 @@ public class AuthService {
         log.info("New user registered: {}", savedUser.getEmail());
 
         // 3. JWT 토큰 생성
-        String accessToken = jwtTokenProvider.createAccessToken(savedUser.getId(), savedUser.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(
+            savedUser.getId(),
+            savedUser.getEmail(),
+            savedUser.getRole().name()
+        );
         String refreshTokenString = jwtTokenProvider.createRefreshToken(savedUser.getId());
 
         // 4. Refresh Token 저장
@@ -116,7 +120,11 @@ public class AuthService {
             userRepository.save(user);
 
             // 4. JWT 토큰 생성
-            String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+            String accessToken = jwtTokenProvider.createAccessToken(
+                user.getId(),
+                user.getEmail(),
+                user.getRole().name()
+            );
             String refreshTokenString = jwtTokenProvider.createRefreshToken(user.getId());
 
             // 5. Refresh Token 저장
@@ -169,7 +177,11 @@ public class AuthService {
         User user = refreshToken.getUser();
 
         // 4. 새로운 Access Token 생성
-        String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String newAccessToken = jwtTokenProvider.createAccessToken(
+            user.getId(),
+            user.getEmail(),
+            user.getRole().name()
+        );
 
         log.info("Access token refreshed for user: {}", user.getEmail());
 

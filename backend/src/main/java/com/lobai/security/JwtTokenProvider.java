@@ -42,15 +42,17 @@ public class JwtTokenProvider {
      *
      * @param userId 사용자 ID
      * @param email 사용자 이메일
+     * @param role 사용자 권한 (USER, ADMIN)
      * @return Access Token 문자열
      */
-    public String createAccessToken(Long userId, String email) {
+    public String createAccessToken(Long userId, String email, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenExpiry);
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("email", email)
+                .claim("role", role)  // 권한 정보 추가
                 .claim("type", "access")
                 .issuedAt(now)
                 .expiration(expiryDate)
@@ -97,6 +99,17 @@ public class JwtTokenProvider {
     public String getEmailFromToken(String token) {
         Claims claims = parseClaims(token);
         return claims.get("email", String.class);
+    }
+
+    /**
+     * JWT 토큰에서 권한(role) 추출
+     *
+     * @param token JWT 토큰
+     * @return 권한 (USER, ADMIN)
+     */
+    public String getRoleFromToken(String token) {
+        Claims claims = parseClaims(token);
+        return claims.get("role", String.class);
     }
 
     /**

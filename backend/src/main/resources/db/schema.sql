@@ -52,8 +52,10 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_login_at TIMESTAMP COMMENT '마지막 로그인 시각',
     is_active BOOLEAN DEFAULT TRUE COMMENT '활성화 여부',
+    role VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '사용자 권한 (USER, ADMIN)',
 
     INDEX idx_email (email),
+    INDEX idx_role (role),
     INDEX idx_oauth (oauth_provider, oauth_id),
     INDEX idx_created_at (created_at),
 

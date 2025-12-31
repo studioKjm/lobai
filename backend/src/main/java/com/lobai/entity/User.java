@@ -80,6 +80,12 @@ public class User {
     @Builder.Default
     private Boolean isActive = true;
 
+    // User role (USER or ADMIN)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", length = 20, nullable = false, columnDefinition = "VARCHAR(20)")
+    @Builder.Default
+    private Role role = Role.USER;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

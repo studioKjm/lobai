@@ -55,4 +55,44 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query("SELECT COUNT(u) FROM User u WHERE u.currentPersona.id = :personaId")
     long countByCurrentPersonaId(@Param("personaId") Long personaId);
+
+    // ==================== Admin Statistics ====================
+
+    /**
+     * 특정 시간 이후 로그인한 사용자 수 (활성 사용자)
+     */
+    long countByLastLoginAtAfter(LocalDateTime since);
+
+    /**
+     * 특정 시간 이후 가입한 사용자 수 (신규 가입자)
+     */
+    long countByCreatedAtAfter(LocalDateTime since);
+
+    /**
+     * 특정 기간 동안 로그인한 사용자 수
+     */
+    long countByLastLoginAtBetween(LocalDateTime start, LocalDateTime end);
+
+    /**
+     * 특정 기간 동안 가입한 사용자 수
+     */
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    /**
+     * 활성 사용자들의 평균 배고픔 (is_active = true)
+     */
+    @Query("SELECT AVG(u.currentHunger) FROM User u WHERE u.isActive = true")
+    Optional<Double> getAverageHungerOfActiveUsers();
+
+    /**
+     * 활성 사용자들의 평균 에너지
+     */
+    @Query("SELECT AVG(u.currentEnergy) FROM User u WHERE u.isActive = true")
+    Optional<Double> getAverageEnergyOfActiveUsers();
+
+    /**
+     * 활성 사용자들의 평균 행복도
+     */
+    @Query("SELECT AVG(u.currentHappiness) FROM User u WHERE u.isActive = true")
+    Optional<Double> getAverageHappinessOfActiveUsers();
 }
