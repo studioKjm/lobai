@@ -6,8 +6,8 @@ import { useAuthStore } from '@/stores/authStore';
 
 const registerSchema = z.object({
   email: z.string().email('올바른 이메일 형식이 아닙니다'),
-  username: z.string().min(2, '이름은 최소 2자 이상이어야 합니다').max(50, '이름은 50자 이하여야 합니다'),
-  password: z.string().min(8, '비밀번호는 최소 8자 이상이어야 합니다'),
+  username: z.string().min(1, '이름을 입력해주세요').max(50, '이름은 50자 이하여야 합니다'),
+  password: z.string().min(1, '비밀번호를 입력해주세요'),
   passwordConfirm: z.string()
 }).refine((data) => data.password === data.passwordConfirm, {
   message: "비밀번호가 일치하지 않습니다",
@@ -38,7 +38,11 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     setErrorMessage('');
 
     try {
-      await register_action(data.email, data.password, data.username);
+      await register_action({
+        email: data.email,
+        password: data.password,
+        username: data.username
+      });
       onSuccess();
     } catch (error) {
       setErrorMessage(

@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 
 const loginSchema = z.object({
   email: z.string().email('올바른 이메일 형식이 아닙니다'),
-  password: z.string().min(8, '비밀번호는 최소 8자 이상이어야 합니다')
+  password: z.string().min(1, '비밀번호를 입력해주세요')
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -33,7 +33,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     setErrorMessage('');
 
     try {
-      await login(data.email, data.password);
+      await login({ email: data.email, password: data.password });
       onSuccess();
     } catch (error) {
       setErrorMessage(
