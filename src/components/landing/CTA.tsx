@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-const CTA: React.FC = () => {
+export const CTA: React.FC = () => {
   return (
     <section className="relative py-32 px-6 sm:px-12">
       <div className="max-w-4xl mx-auto text-center">
@@ -27,4 +27,3 @@ const CTA: React.FC = () => {
   );
 };
 
-export default CTA;

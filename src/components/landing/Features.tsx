@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Features: React.FC = () => {
+export const Features: React.FC = () => {
   return (
     <section id="features" className="relative py-32 px-6 sm:px-12">
       <div className="max-w-6xl mx-auto">
@@ -62,4 +62,3 @@ const Features: React.FC = () => {
   );
 };
 
-export default Features;

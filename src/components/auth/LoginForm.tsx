@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/stores/authStore';
 
 const loginSchema = z.object({
   email: z.string().email('올바른 이메일 형식이 아닙니다'),

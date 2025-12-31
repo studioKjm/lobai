@@ -1,6 +1,6 @@
 import React from 'react';
 
-const HowItWorks: React.FC = () => {
+export const HowItWorks: React.FC = () => {
   return (
     <section id="about" className="relative py-32 px-6 sm:px-12 bg-gradient-to-b from-transparent via-white/[0.02] to-transparent">
       <div className="max-w-6xl mx-auto">
@@ -113,4 +113,3 @@ const HowItWorks: React.FC = () => {
   );
 };
 
-export default HowItWorks;
