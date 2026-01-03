@@ -26,16 +26,29 @@ public class SecurityUtil {
 
         Object principal = authentication.getPrincipal();
 
+        // Anonymous user check (Spring Security default for unauthenticated users)
+        if (principal instanceof String && "anonymousUser".equals(principal)) {
+            throw new IllegalStateException("인증되지 않은 사용자입니다");
+        }
+
         // JwtAuthenticationFilter에서 principal을 String(userId)로 설정
         if (principal instanceof String) {
-            return Long.parseLong((String) principal);
+            try {
+                return Long.parseLong((String) principal);
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException("올바르지 않은 사용자 ID 형식입니다");
+            }
         }
 
         if (principal instanceof UserDetails) {
             // UserDetails의 username은 실제로는 email이므로 사용 불가
             // Authentication의 name을 사용 (JwtAuthenticationFilter에서 설정한 userId)
             String userIdString = authentication.getName();
-            return Long.parseLong(userIdString);
+            try {
+                return Long.parseLong(userIdString);
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException("올바르지 않은 사용자 ID 형식입니다");
+            }
         }
 
         throw new IllegalStateException("올바르지 않은 인증 정보입니다");

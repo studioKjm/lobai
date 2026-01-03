@@ -35,8 +35,9 @@ jwt:
 # Gemini API Configuration
 gemini:
   api-key: ${GEMINI_API_KEY:your-gemini-api-key}
-  model: gemini-flash-latest
+  model: gemini-2.5-flash    # 유료 tier: $0.15/$0.60 per M tokens
   temperature: 0.8
+  max-output-tokens: 500     # 한국어 1-2문장 답변용
 
 # CORS Configuration
 cors:

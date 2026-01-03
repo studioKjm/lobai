@@ -4,6 +4,8 @@
 -- Charset: utf8mb4 (for emoji support)
 
 -- Drop tables if exists (for clean re-creation)
+DROP TABLE IF EXISTS affinity_analysis_details;
+DROP TABLE IF EXISTS affinity_scores;
 DROP TABLE IF EXISTS refresh_tokens;
 DROP TABLE IF EXISTS user_stats_history;
 DROP TABLE IF EXISTS messages;
@@ -70,16 +72,20 @@ CREATE TABLE messages (
     role ENUM('user', 'bot') NOT NULL COMMENT '발신자 역할',
     content TEXT NOT NULL COMMENT '메시지 내용',
 
-    -- Phase 2용 분석 필드
+    -- 친밀도 점수 분석 필드 (Phase 1)
     sentiment_score DECIMAL(5,2) COMMENT '감정 점수 (-1.00 ~ 1.00)',
     clarity_score DECIMAL(5,2) COMMENT '명확도 점수 (0.00 ~ 1.00)',
+    context_score DECIMAL(5,2) COMMENT '맥락 유지 점수 (0.00 ~ 1.00)',
+    usage_score DECIMAL(5,2) COMMENT 'AI 활용 태도 점수 (0.00 ~ 1.00)',
+    is_analyzed BOOLEAN DEFAULT FALSE COMMENT '점수 분석 완료 여부',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (persona_id) REFERENCES personas(id),
     INDEX idx_user_created (user_id, created_at DESC),
-    INDEX idx_persona (persona_id)
+    INDEX idx_persona (persona_id),
+    INDEX idx_is_analyzed (is_analyzed)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='채팅 메시지 테이블';
 
 -- 4. User Stats History Table
@@ -113,3 +119,63 @@ CREATE TABLE refresh_tokens (
     INDEX idx_token (token),
     INDEX idx_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Refresh Token 테이블';
+
+-- 6. Affinity Scores Table (친밀도 점수 집계)
+CREATE TABLE affinity_scores (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL UNIQUE COMMENT '사용자 ID',
+
+    -- 종합 점수
+    overall_score DECIMAL(5,2) NOT NULL DEFAULT 50.00 COMMENT '종합 친밀도 점수 (0.00-100.00)',
+    level INT NOT NULL DEFAULT 3 COMMENT '레벨 (1-5)',
+
+    -- 개별 점수 평균 (최근 N개 메시지 기준)
+    avg_sentiment_score DECIMAL(5,2) DEFAULT 0.00 COMMENT '평균 감정 점수 (-1.00 ~ 1.00)',
+    avg_clarity_score DECIMAL(5,2) DEFAULT 0.50 COMMENT '평균 명확성 점수 (0.00 ~ 1.00)',
+    avg_context_score DECIMAL(5,2) DEFAULT 0.50 COMMENT '평균 맥락 유지 점수 (0.00 ~ 1.00)',
+    avg_usage_score DECIMAL(5,2) DEFAULT 0.50 COMMENT '평균 활용 태도 점수 (0.00 ~ 1.00)',
+
+    -- 통계 정보
+    total_messages INT NOT NULL DEFAULT 0 COMMENT '총 메시지 수',
+    analyzed_messages INT NOT NULL DEFAULT 0 COMMENT '분석된 메시지 수',
+    last_analyzed_message_id BIGINT COMMENT '마지막 분석된 메시지 ID',
+
+    -- 메타데이터
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_overall_score (overall_score DESC),
+    INDEX idx_level (level),
+    INDEX idx_updated_at (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='사용자별 친밀도 점수 집계 테이블';
+
+-- 7. Affinity Analysis Details Table (친밀도 상세 분석 결과 - 유료 기능)
+CREATE TABLE affinity_analysis_details (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL COMMENT '사용자 ID',
+
+    -- 분석 유형 및 결과
+    analysis_type ENUM('daily', 'weekly', 'monthly', 'on_demand') NOT NULL COMMENT '분석 유형',
+    score_snapshot DECIMAL(5,2) NOT NULL COMMENT '분석 당시 점수',
+    level_snapshot INT NOT NULL COMMENT '분석 당시 레벨',
+
+    -- 상세 피드백 (JSON 형태로 저장)
+    sentiment_feedback TEXT COMMENT '감정 점수 피드백',
+    clarity_feedback TEXT COMMENT '명확성 점수 피드백',
+    context_feedback TEXT COMMENT '맥락 유지 피드백',
+    usage_feedback TEXT COMMENT 'AI 활용 태도 피드백',
+
+    -- 개선 가이드 (JSON 배열)
+    improvement_suggestions TEXT COMMENT '개선 제안사항 (JSON)',
+
+    -- 분석 메타데이터
+    analyzed_message_count INT NOT NULL COMMENT '분석된 메시지 수',
+    analysis_period_start TIMESTAMP COMMENT '분석 기간 시작',
+    analysis_period_end TIMESTAMP COMMENT '분석 기간 종료',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_created (user_id, created_at DESC),
+    INDEX idx_analysis_type (analysis_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='친밀도 상세 분석 결과 (유료)';

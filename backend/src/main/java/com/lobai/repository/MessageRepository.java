@@ -74,16 +74,16 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     long countByCreatedAtAfter(LocalDateTime since);
 
     /**
-     * 역할별 메시지 수 (role은 String으로 받음: "user" 또는 "bot")
+     * 역할별 메시지 수
      */
     @Query("SELECT COUNT(m) FROM Message m WHERE m.role = :role")
-    long countByRole(@Param("role") String role);
+    long countByRole(@Param("role") MessageRole role);
 
     /**
      * 특정 역할의 특정 기간 메시지 수
      */
     @Query("SELECT COUNT(m) FROM Message m WHERE m.role = :role AND m.createdAt BETWEEN :start AND :end")
-    long countByRoleAndCreatedAtBetween(@Param("role") String role,
+    long countByRoleAndCreatedAtBetween(@Param("role") MessageRole role,
                                          @Param("start") LocalDateTime start,
                                          @Param("end") LocalDateTime end);
 
@@ -91,10 +91,68 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
      * 가장 인기있는 페르소나 조회 (persona_id, name, message_count)
      * Object[] = {personaId, personaName, messageCount}
      */
-    @Query("SELECT m.persona.id, m.persona.name, COUNT(m) " +
-           "FROM Message m " +
-           "GROUP BY m.persona.id, m.persona.name " +
-           "ORDER BY COUNT(m) DESC " +
-           "LIMIT 1")
+    @Query(value = "SELECT m.persona_id, p.name, COUNT(*) as cnt " +
+                   "FROM messages m " +
+                   "LEFT JOIN personas p ON m.persona_id = p.id " +
+                   "WHERE m.persona_id IS NOT NULL " +
+                   "GROUP BY m.persona_id, p.name " +
+                   "ORDER BY cnt DESC " +
+                   "LIMIT 1",
+           nativeQuery = true)
     Optional<Object[]> findMostPopularPersona();
+
+    // ==================== Affinity Score Calculations ====================
+
+    /**
+     * 특정 기간 이후 사용자 메시지 수
+     */
+    long countByUserIdAndRoleAndCreatedAtAfter(Long userId, MessageRole role, LocalDateTime since);
+
+    /**
+     * 사용자가 사용한 고유 페르소나 수
+     */
+    @Query("SELECT COUNT(DISTINCT m.persona.id) FROM Message m WHERE m.user.id = :userId")
+    long countUniquePersonasByUser(@Param("userId") Long userId);
+
+    /**
+     * 사용자 메시지의 평균 길이
+     */
+    @Query("SELECT AVG(LENGTH(m.content)) FROM Message m WHERE m.user.id = :userId AND m.role = :role")
+    Double getAverageMessageLengthByUser(@Param("userId") Long userId, @Param("role") MessageRole role);
+
+    /**
+     * 최근 N개의 사용자 메시지 조회 (점수 계산용)
+     */
+    @Query("SELECT m FROM Message m WHERE m.user.id = :userId AND m.role = 'user' ORDER BY m.createdAt DESC")
+    List<Message> findRecentUserMessages(@Param("userId") Long userId, Pageable pageable);
+
+    /**
+     * 분석되지 않은 사용자 메시지 조회
+     */
+    @Query("SELECT m FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND (m.isAnalyzed IS NULL OR m.isAnalyzed = FALSE) ORDER BY m.createdAt ASC")
+    List<Message> findUnanalyzedUserMessages(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 평균 sentiment 점수
+     */
+    @Query("SELECT AVG(m.sentimentScore) FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.sentimentScore IS NOT NULL")
+    Double getAverageSentimentByUser(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 평균 clarity 점수
+     */
+    @Query("SELECT AVG(m.clarityScore) FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.clarityScore IS NOT NULL")
+    Double getAverageClarityByUser(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 평균 context 점수
+     */
+    @Query("SELECT AVG(m.contextScore) FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.contextScore IS NOT NULL")
+    Double getAverageContextByUser(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 평균 usage 점수
+     */
+    @Query("SELECT AVG(m.usageScore) FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.usageScore IS NOT NULL")
+    Double getAverageUsageByUser(@Param("userId") Long userId);
 }

@@ -47,7 +47,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               ? 'bg-blue-600 text-white rounded-tr-none'
               : 'bg-white/5 text-white/90 rounded-tl-none border border-white/5'
             }`}>
-              {msg.text}
+              {msg.content}
             </div>
           </div>
         ))}

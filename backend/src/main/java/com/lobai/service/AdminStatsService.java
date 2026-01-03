@@ -65,8 +65,25 @@ public class AdminStatsService {
 
         // 가장 인기있는 페르소나
         var mostPopularPersona = messageRepository.findMostPopularPersona();
-        String mostPopularPersonaName = mostPopularPersona.map(p -> p[1].toString()).orElse("N/A");
-        Long mostPopularPersonaCount = mostPopularPersona.map(p -> ((Number) p[2]).longValue()).orElse(0L);
+        String mostPopularPersonaName = "N/A";
+        Long mostPopularPersonaCount = 0L;
+
+        if (mostPopularPersona.isPresent()) {
+            Object[] result = mostPopularPersona.get();
+
+            // Native query returns nested array: result[0] = [personaId, name, count]
+            if (result.length == 1 && result[0] instanceof Object[]) {
+                Object[] data = (Object[]) result[0];
+                if (data.length >= 3) {
+                    mostPopularPersonaName = data[1] != null ? data[1].toString() : "N/A";
+                    mostPopularPersonaCount = data[2] != null ? ((Number) data[2]).longValue() : 0L;
+                }
+            } else if (result.length >= 3) {
+                // Fallback for non-nested array
+                mostPopularPersonaName = result[1] != null ? result[1].toString() : "N/A";
+                mostPopularPersonaCount = result[2] != null ? ((Number) result[2]).longValue() : 0L;
+            }
+        }
 
         return StatsOverviewResponse.builder()
                 .totalUsers(totalUsers)
@@ -128,8 +145,8 @@ public class AdminStatsService {
         log.info("Fetching message statistics");
 
         Long totalMessages = messageRepository.count();
-        Long userMessages = messageRepository.countByRole("user");
-        Long botMessages = messageRepository.countByRole("bot");
+        Long userMessages = messageRepository.countByRole(com.lobai.entity.Message.MessageRole.user);
+        Long botMessages = messageRepository.countByRole(com.lobai.entity.Message.MessageRole.bot);
         Long totalUsers = userRepository.count();
         Double avgMessagesPerUser = totalUsers > 0 ? (double) totalMessages / totalUsers : 0.0;
 
@@ -147,8 +164,10 @@ public class AdminStatsService {
             LocalDateTime dayStart = date.atStartOfDay();
             LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
 
-            Long userMsgCount = messageRepository.countByRoleAndCreatedAtBetween("user", dayStart, dayEnd);
-            Long botMsgCount = messageRepository.countByRoleAndCreatedAtBetween("bot", dayStart, dayEnd);
+            Long userMsgCount = messageRepository.countByRoleAndCreatedAtBetween(
+                com.lobai.entity.Message.MessageRole.user, dayStart, dayEnd);
+            Long botMsgCount = messageRepository.countByRoleAndCreatedAtBetween(
+                com.lobai.entity.Message.MessageRole.bot, dayStart, dayEnd);
 
             dailyMessages.add(MessageStatsResponse.DailyMessageCount.builder()
                     .date(date.format(DATE_FORMATTER))

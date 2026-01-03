@@ -85,7 +85,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       set(state => ({
         messages: [...state.messages, {
           role: 'bot' as const,
-          text: responses[action]
+          content: responses[action]
         }]
       }));
 
@@ -110,7 +110,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         set({
           messages: [{
             role: 'bot' as const,
-            text: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
+            content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
           }],
           isLoading: false
         });
@@ -128,7 +128,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       set({
         messages: [{
           role: 'bot' as const,
-          text: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
+          content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
         }]
       });
     }
@@ -142,7 +142,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
     // Add user message immediately
     set(state => ({
-      messages: [...state.messages, { role: 'user' as const, text: content }],
+      messages: [...state.messages, { role: 'user' as const, content: content }],
       isTyping: true,
       error: null
     }));
@@ -185,7 +185,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       set(state => ({
         messages: [...state.messages, {
           role: 'bot' as const,
-          text: '삐비빅... 지금은 대화가 조금 어려워요.'
+          content: '삐비빅... 지금은 대화가 조금 어려워요.'
         }]
       }));
 
@@ -261,7 +261,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     set({
       messages: [{
         role: 'bot' as const,
-        text: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
+        content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
       }]
     });
   }

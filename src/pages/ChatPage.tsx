@@ -5,6 +5,9 @@ import { ActionButtons } from '@/components/chat/ActionButtons';
 import { PersonaSelector } from '@/components/chat/PersonaSelector';
 import { SplineCharacter } from '@/components/chat/SplineCharacter';
 import { ChatInterface } from '@/components/chat/ChatInterface';
+import { AffinityScoreCard } from '@/components/affinity/AffinityScoreCard';
+import { AttendanceCard } from '@/components/attendance/AttendanceCard';
+import { ResilienceReportCard } from '@/components/resilience/ResilienceReportCard';
 import { useSplineLoader } from '@/hooks/useSplineLoader';
 import { useChatStore } from '@/stores/chatStore';
 import type { ActionType } from '@/types';
@@ -89,6 +92,24 @@ export const ChatPage: React.FC = () => {
             onInputChange={setInputValue}
             onSendMessage={handleSendMessage}
           />
+        </div>
+
+        {/* Phase 2: Attendance & Resilience Section */}
+        <div className="relative w-full max-w-6xl mt-12">
+          <div className="grid lg:grid-cols-2 gap-8 mb-8">
+            <AttendanceCard />
+            <div className="lg:col-span-1" />
+          </div>
+        </div>
+
+        {/* Affinity Score Section */}
+        <div className="relative w-full max-w-6xl mt-8">
+          <AffinityScoreCard />
+        </div>
+
+        {/* AI Resilience Report Section */}
+        <div className="relative w-full max-w-6xl mt-8">
+          <ResilienceReportCard />
         </div>
       </section>
     </div>

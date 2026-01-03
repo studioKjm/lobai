@@ -19,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,6 +38,7 @@ public class MessageService {
     private final PersonaRepository personaRepository;
     private final UserStatsHistoryRepository userStatsHistoryRepository;
     private final GeminiService geminiService;
+    private final AffinityScoreService affinityScoreService;
 
     /**
      * 메시지 전송 및 AI 응답 생성
@@ -67,7 +69,20 @@ public class MessageService {
             }
         }
 
-        // 3. 사용자 메시지 저장
+        // 3. 최근 대화 히스토리 조회 (최근 20개 = 10번의 대화 왕복)
+        // 시간순 정렬 (오래된 것부터)
+        Pageable historyPageable = PageRequest.of(0, 20);
+        List<Message> recentHistory = messageRepository
+                .findByUserIdOrderByCreatedAtDesc(userId, historyPageable)
+                .getContent();
+
+        // 역순으로 변환 (오래된 것부터 최신 것 순으로)
+        List<Message> conversationHistory = new ArrayList<>();
+        for (int i = recentHistory.size() - 1; i >= 0; i--) {
+            conversationHistory.add(recentHistory.get(i));
+        }
+
+        // 4. 사용자 메시지 저장
         Message userMessage = Message.builder()
                 .user(user)
                 .persona(persona)
@@ -76,16 +91,25 @@ public class MessageService {
                 .build();
         userMessage = messageRepository.save(userMessage);
 
-        // 4. Gemini API 호출하여 AI 응답 생성
+        // 4-1. 친밀도 점수 분석 (비동기 권장, 현재는 동기)
+        try {
+            affinityScoreService.analyzeAndUpdateScore(userMessage);
+        } catch (Exception e) {
+            log.warn("Affinity score analysis failed, continuing: userId={}, error={}",
+                    userId, e.getMessage());
+        }
+
+        // 5. Gemini API 호출하여 AI 응답 생성 (대화 히스토리 포함)
         String aiResponseText = geminiService.generateResponse(
                 request.getContent(),
+                conversationHistory,
                 persona,
                 user.getCurrentHunger(),
                 user.getCurrentEnergy(),
                 user.getCurrentHappiness()
         );
 
-        // 5. AI 응답 저장
+        // 6. AI 응답 저장
         Message botMessage = Message.builder()
                 .user(user)
                 .persona(persona)
@@ -94,12 +118,12 @@ public class MessageService {
                 .build();
         botMessage = messageRepository.save(botMessage);
 
-        // 6. Stats 업데이트 (대화 시 행복도 소폭 증가)
+        // 7. Stats 업데이트 (대화 시 행복도 소폭 증가)
         Integer newHappiness = user.getCurrentHappiness() + 2;  // 대화 1회당 +2
         user.updateStats(null, null, newHappiness);
         userRepository.save(user);
 
-        // 7. Stats 히스토리 기록
+        // 8. Stats 히스토리 기록
         UserStatsHistory history = UserStatsHistory.builder()
                 .user(user)
                 .hunger(user.getCurrentHunger())
@@ -109,10 +133,10 @@ public class MessageService {
                 .build();
         userStatsHistoryRepository.save(history);
 
-        log.info("Chat completed for user {}: persona={}, happiness {} -> {}",
-                userId, persona.getNameEn(), newHappiness - 2, newHappiness);
+        log.info("Chat completed for user {}: persona={}, history={} msgs, happiness {} -> {}",
+                userId, persona.getNameEn(), conversationHistory.size(), newHappiness - 2, newHappiness);
 
-        // 8. 응답 생성
+        // 9. 응답 생성
         return ChatResponse.builder()
                 .userMessage(MessageResponse.from(userMessage))
                 .botMessage(MessageResponse.from(botMessage))

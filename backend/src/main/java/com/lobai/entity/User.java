@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -86,6 +87,23 @@ public class User {
     @Builder.Default
     private Role role = Role.USER;
 
+    // Phase 2: Subscription & Attendance fields
+    @Enumerated(EnumType.STRING)
+    @Column(name = "subscription_tier", length = 20, nullable = false)
+    @Builder.Default
+    private SubscriptionTier subscriptionTier = SubscriptionTier.free;
+
+    @Column(name = "total_attendance_days")
+    @Builder.Default
+    private Integer totalAttendanceDays = 0;
+
+    @Column(name = "max_streak_days")
+    @Builder.Default
+    private Integer maxStreakDays = 0;
+
+    @Column(name = "last_attendance_date", columnDefinition = "DATE")
+    private LocalDate lastAttendanceDate;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -116,5 +134,23 @@ public class User {
         if (value < 0) return 0;
         if (value > 100) return 100;
         return value;
+    }
+
+    // Phase 2: Attendance update methods
+    public void updateAttendance(Integer streakCount) {
+        this.totalAttendanceDays++;
+        this.lastAttendanceDate = LocalDate.now();
+        if (streakCount > this.maxStreakDays) {
+            this.maxStreakDays = streakCount;
+        }
+    }
+
+    /**
+     * Subscription Tier Enum
+     */
+    public enum SubscriptionTier {
+        free,
+        basic,
+        premium
     }
 }

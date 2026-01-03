@@ -24,6 +24,9 @@ public class GeminiConfig {
     @Value("${gemini.temperature:0.8}")
     private Double temperature;
 
+    @Value("${gemini.max-output-tokens:150}")
+    private Integer maxOutputTokens;
+
     @Value("${gemini.api-url:https://generativelanguage.googleapis.com/v1beta/models}")
     private String apiUrl;
 

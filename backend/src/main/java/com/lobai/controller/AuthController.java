@@ -97,9 +97,14 @@ public class AuthController {
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser() {
         log.info("Get current user request received");
 
-        UserResponse response = authService.getCurrentUser();
-
-        return ResponseEntity
-                .ok(ApiResponse.success(response));
+        try {
+            UserResponse response = authService.getCurrentUser();
+            return ResponseEntity
+                    .ok(ApiResponse.success(response));
+        } catch (IllegalStateException e) {
+            // 인증되지 않은 사용자
+            return ResponseEntity
+                    .ok(ApiResponse.success("인증되지 않은 사용자입니다", null));
+        }
     }
 }

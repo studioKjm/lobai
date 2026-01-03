@@ -81,7 +81,7 @@ api.interceptors.response.use(
     // Handle 403 Forbidden - Insufficient permissions
     if (error.response?.status === 403) {
       toast.error('접근 권한이 없습니다.');
-      window.location.href = '/';
+      // Don't auto-redirect, let components handle it
     }
 
     // Handle 500 Internal Server Error

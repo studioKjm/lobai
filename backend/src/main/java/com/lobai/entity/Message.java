@@ -44,12 +44,22 @@ public class Message {
     @Column(name = "content", columnDefinition = "TEXT", nullable = false)
     private String content;
 
-    // Phase 2용 분석 필드
+    // 친밀도 점수 분석 필드 (Phase 1)
     @Column(name = "sentiment_score", precision = 5, scale = 2)
-    private BigDecimal sentimentScore;  // -1.00 ~ 1.00
+    private BigDecimal sentimentScore;  // -1.00 ~ 1.00 (감정 점수)
 
     @Column(name = "clarity_score", precision = 5, scale = 2)
-    private BigDecimal clarityScore;  // 0.00 ~ 1.00
+    private BigDecimal clarityScore;  // 0.00 ~ 1.00 (명확성 점수)
+
+    @Column(name = "context_score", precision = 5, scale = 2)
+    private BigDecimal contextScore;  // 0.00 ~ 1.00 (맥락 유지 점수)
+
+    @Column(name = "usage_score", precision = 5, scale = 2)
+    private BigDecimal usageScore;  // 0.00 ~ 1.00 (AI 활용 태도 점수)
+
+    @Column(name = "is_analyzed")
+    @Builder.Default
+    private Boolean isAnalyzed = false;  // 점수 분석 완료 여부
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
