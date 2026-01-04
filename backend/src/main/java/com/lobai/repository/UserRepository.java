@@ -1,5 +1,6 @@
 package com.lobai.repository;
 
+import com.lobai.entity.Role;
 import com.lobai.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -95,4 +96,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query("SELECT AVG(u.currentHappiness) FROM User u WHERE u.isActive = true")
     Optional<Double> getAverageHappinessOfActiveUsers();
+
+    // ==================== Admin User Management ====================
+
+    /**
+     * ADMIN 권한을 가진 사용자 수 조회
+     */
+    long countByRole(Role role);
+
+    /**
+     * 특정 사용자 외의 ADMIN 권한 사용자 수 조회
+     */
+    @Query("SELECT COUNT(u) FROM User u WHERE u.role = :role AND u.id != :userId")
+    long countByRoleExcludingUser(@Param("role") Role role, @Param("userId") Long userId);
 }
