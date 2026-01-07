@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -93,7 +94,7 @@ public class GeminiService {
             generationConfig.put("maxOutputTokens", geminiConfig.getMaxOutputTokens());
             requestBody.put("generationConfig", generationConfig);
 
-            // 4. HTTP Request 전송
+            // 4. HTTP Request 전송 (503 에러 시 최대 3번 재시도)
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -103,12 +104,33 @@ public class GeminiService {
             log.debug("Calling Gemini API: {} with {} history messages", url,
                      conversationHistory != null ? conversationHistory.size() : 0);
 
-            ResponseEntity<String> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    entity,
-                    String.class
-            );
+            int maxRetries = 3;
+            int retryCount = 0;
+            ResponseEntity<String> response = null;
+
+            while (retryCount < maxRetries) {
+                try {
+                    response = restTemplate.exchange(
+                            url,
+                            HttpMethod.POST,
+                            entity,
+                            String.class
+                    );
+                    break; // 성공하면 루프 탈출
+                } catch (HttpServerErrorException.ServiceUnavailable e) {
+                    retryCount++;
+                    log.warn("Gemini API 503 error, retry {}/{}", retryCount, maxRetries);
+                    if (retryCount >= maxRetries) {
+                        throw e; // 최대 재시도 횟수 초과 시 예외 던짐
+                    }
+                    try {
+                        Thread.sleep(1000 * retryCount); // 1초, 2초, 3초 대기
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw e;
+                    }
+                }
+            }
 
             // 5. Response 파싱
             String responseBody = response.getBody();

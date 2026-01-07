@@ -80,4 +80,20 @@ public class MessageController {
         return ResponseEntity
                 .ok(ApiResponse.success(messages));
     }
+
+    /**
+     * 대화 히스토리 전체 삭제
+     *
+     * DELETE /api/messages
+     */
+    @DeleteMapping
+    public ResponseEntity<ApiResponse<Void>> clearMessageHistory() {
+        Long userId = SecurityUtil.getCurrentUserId();
+        log.info("Clear message history request from user {}", userId);
+
+        messageService.clearMessageHistory(userId);
+
+        return ResponseEntity
+                .ok(ApiResponse.success("대화 기록이 초기화되었습니다.", null));
+    }
 }

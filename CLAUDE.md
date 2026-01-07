@@ -92,3 +92,31 @@ The bot uses **Gemini 3 Flash Preview** with a Korean-language system instructio
 - The 3D robot is an external Spline embed, not a local asset
 - Stats decay continuously and never persist between sessions
 - The app is designed for Korean-speaking users (UI text and bot responses in Korean)
+
+## Agent & Tool Usage Guidelines
+
+### 작업 유형별 권장 도구
+
+| 작업 유형 | 권장 도구 | 사용 시점 |
+|-----------|----------|----------|
+| 파일 위치 모를 때 | `Task(Explore)` | 코드 탐색 필요 시 |
+| 영향 범위 파악 | `impact-analyzer-agent` 호출 | 수정 전 |
+| 간단한 버그/기능 수정 | 직접 수정 또는 `quick-fix-agent` | 1-3개 파일 수정 |
+| 백엔드 API 작업 | `backend-developer-agent` 호출 | Entity/Service/Controller 작업 |
+| 수정 후 검증 | `test-engineer-agent` 또는 `code-review` 스킬 | 작업 완료 후 |
+| 브라우저 테스트 | `playwright` MCP | UI 동작 검증 |
+
+### 자동 사용 규칙
+
+1. **수정 전**: 영향받는 파일이 3개 이상이면 `impact-analyzer-agent` 먼저 실행
+2. **백엔드 작업**: Spring Boot 코드 작성 시 `backend-developer-agent` 활용
+3. **수정 후**: 중요 변경 시 `code-review` 스킬로 리뷰
+
+### 커스텀 에이전트 목록 (.claude/agents/)
+
+- `quick-fix-agent` - 간단한 버그/기능 수정
+- `impact-analyzer-agent` - 변경 영향 분석
+- `backend-developer-agent` - Spring Boot 백엔드 개발
+- `test-engineer-agent` - 테스트 작성
+- `refactor-agent` - 코드 리팩터링
+- `security-agent` - 보안 검사

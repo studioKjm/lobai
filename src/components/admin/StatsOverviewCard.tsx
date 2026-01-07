@@ -38,7 +38,7 @@ export function StatsOverviewCard({ data }: StatsOverviewCardProps) {
 
   const robotStats = [
     {
-      label: '평균 배고픔',
+      label: '평균 포만감',
       value: data.avgHunger.toFixed(1),
       color: 'text-yellow-400',
     },

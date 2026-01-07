@@ -45,15 +45,15 @@ public class User {
     // Stats (0-100 range)
     @Column(name = "current_hunger")
     @Builder.Default
-    private Integer currentHunger = 80;
+    private Integer currentHunger = 50;
 
     @Column(name = "current_energy")
     @Builder.Default
-    private Integer currentEnergy = 90;
+    private Integer currentEnergy = 50;
 
     @Column(name = "current_happiness")
     @Builder.Default
-    private Integer currentHappiness = 70;
+    private Integer currentHappiness = 50;
 
     // Persona relationship (ManyToOne)
     @ManyToOne(fetch = FetchType.LAZY)
@@ -143,6 +143,32 @@ public class User {
         if (streakCount > this.maxStreakDays) {
             this.maxStreakDays = streakCount;
         }
+    }
+
+    // Admin methods
+    public void changeRole(Role newRole) {
+        this.role = newRole;
+    }
+
+    public void changeStatus(String status) {
+        this.isActive = "active".equalsIgnoreCase(status);
+    }
+
+    public String getStatus() {
+        return isActive ? "active" : "inactive";
+    }
+
+    public void updateProfile(String email, String username) {
+        if (email != null && !email.isEmpty()) {
+            this.email = email;
+        }
+        if (username != null && !username.isEmpty()) {
+            this.username = username;
+        }
+    }
+
+    public void softDelete() {
+        this.isActive = false;
     }
 
     /**

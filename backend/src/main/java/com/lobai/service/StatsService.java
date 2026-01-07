@@ -1,5 +1,6 @@
 package com.lobai.service;
 
+import com.lobai.dto.request.SetStatsRequest;
 import com.lobai.dto.request.UpdateStatsRequest;
 import com.lobai.dto.response.StatsResponse;
 import com.lobai.entity.User;
@@ -58,20 +59,25 @@ public class StatsService {
 
         switch (request.getAction()) {
             case feed:
-                newHunger += 20;  // 먹이기 → 배고픔 +20
-                log.info("User {} fed the bot: hunger {} -> {}", userId, user.getCurrentHunger(), newHunger);
+                // 먹이기 → 포만감(Hunger) +10, 에너지(Energy) +5
+                newHunger += 10;
+                newEnergy += 5;
+                log.info("User {} fed the bot: hunger {} -> {}, energy {} -> {}",
+                        userId, user.getCurrentHunger(), newHunger, user.getCurrentEnergy(), newEnergy);
                 break;
 
             case play:
-                newHappiness += 15;  // 놀기 → 행복도 +15
-                newEnergy -= 10;     // 놀기 → 에너지 -10
+                // 놀기 → 행복도(Happiness)만 소폭 증가, 에너지 약간 감소
+                newHappiness += 5;
+                newEnergy -= 2;
                 log.info("User {} played with the bot: happiness {} -> {}, energy {} -> {}",
                         userId, user.getCurrentHappiness(), newHappiness, user.getCurrentEnergy(), newEnergy);
                 break;
 
             case sleep:
-                newEnergy += 30;  // 재우기 → 에너지 +30
-                newHunger -= 5;   // 재우기 → 배고픔 -5
+                // 재우기 → 에너지(Energy)만 소폭 증가, 배고픔 약간 감소
+                newEnergy += 5;
+                newHunger -= 1;
                 log.info("User {} put the bot to sleep: energy {} -> {}, hunger {} -> {}",
                         userId, user.getCurrentEnergy(), newEnergy, user.getCurrentHunger(), newHunger);
                 break;
@@ -93,6 +99,32 @@ public class StatsService {
         userStatsHistoryRepository.save(history);
 
         // 5. 응답 반환
+        return StatsResponse.from(user);
+    }
+
+    /**
+     * Stats 직접 설정 (슬라이더 컨트롤용)
+     *
+     * @param userId 사용자 ID
+     * @param request 직접 설정할 Stats 값
+     * @return 업데이트된 Stats
+     */
+    @Transactional
+    public StatsResponse setStats(Long userId, SetStatsRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+
+        // Stats 직접 설정
+        Integer newHunger = request.getHunger() != null ? request.getHunger() : user.getCurrentHunger();
+        Integer newEnergy = request.getEnergy() != null ? request.getEnergy() : user.getCurrentEnergy();
+        Integer newHappiness = request.getHappiness() != null ? request.getHappiness() : user.getCurrentHappiness();
+
+        user.updateStats(newHunger, newEnergy, newHappiness);
+        userRepository.save(user);
+
+        log.info("User {} set stats directly: hunger={}, energy={}, happiness={}",
+                userId, newHunger, newEnergy, newHappiness);
+
         return StatsResponse.from(user);
     }
 

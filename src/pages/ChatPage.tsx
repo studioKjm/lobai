@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from '@/components/common/Navbar';
 import { StatsPanel } from '@/components/chat/StatsPanel';
 import { ActionButtons } from '@/components/chat/ActionButtons';
 import { PersonaSelector } from '@/components/chat/PersonaSelector';
 import { SplineCharacter } from '@/components/chat/SplineCharacter';
 import { ChatInterface } from '@/components/chat/ChatInterface';
+import { SleepOverlay } from '@/components/chat/SleepOverlay';
+import { PlayOverlay } from '@/components/chat/PlayOverlay';
 import { AffinityScoreCard } from '@/components/affinity/AffinityScoreCard';
 import { AttendanceCard } from '@/components/attendance/AttendanceCard';
 import { ResilienceReportCard } from '@/components/resilience/ResilienceReportCard';
@@ -22,14 +24,36 @@ export const ChatPage: React.FC = () => {
     loadMessages,
     loadPersonas,
     updateStats,
-    sendMessage
+    sendMessage,
+    sleepTick,
+    clearMessageHistory
   } = useChatStore();
 
   // Local UI state
   const [inputValue, setInputValue] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isReacting, setIsReacting] = useState(false);
+  const [playButtonPulse, setPlayButtonPulse] = useState(false);
+  const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sleepTickIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const playTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const reactionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const playPulseCounterRef = useRef(0);
 
   // Hooks
-  const { splineReady, onSplineLoad, handleCharacterClick } = useSplineLoader();
+  const { splineReady, onSplineLoad, isSleeping, startSleep, endSleep, resetCamera, setSplineState, characterState } = useSplineLoader();
+
+  // Auto-update character expression based on stats
+  useEffect(() => {
+    if (!splineReady || isSleeping || isPlaying || isReacting) return;
+
+    const isAnySadStat = stats.hunger <= 30 || stats.energy <= 30 || stats.happiness <= 30;
+    const targetState = isAnySadStat ? 'cry' : 'State';
+
+    if (characterState !== targetState) {
+      setSplineState(targetState);
+    }
+  }, [stats.hunger, stats.energy, stats.happiness, splineReady, isSleeping, isPlaying, isReacting, characterState, setSplineState]);
 
   // Load initial data from backend
   useEffect(() => {
@@ -45,9 +69,135 @@ export const ChatPage: React.FC = () => {
     }
   }, []);
 
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (sleepTimerRef.current) {
+        clearTimeout(sleepTimerRef.current);
+      }
+      if (sleepTickIntervalRef.current) {
+        clearInterval(sleepTickIntervalRef.current);
+      }
+      if (playTimerRef.current) {
+        clearTimeout(playTimerRef.current);
+      }
+      if (reactionTimerRef.current) {
+        clearTimeout(reactionTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Sleep tick interval - update stats every second while sleeping
+  useEffect(() => {
+    if (isSleeping) {
+      // Start interval when sleeping begins
+      sleepTickIntervalRef.current = setInterval(() => {
+        sleepTick();
+      }, 1000);
+    } else {
+      // Clear interval when sleeping ends
+      if (sleepTickIntervalRef.current) {
+        clearInterval(sleepTickIntervalRef.current);
+        sleepTickIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (sleepTickIntervalRef.current) {
+        clearInterval(sleepTickIntervalRef.current);
+      }
+    };
+  }, [isSleeping, sleepTick]);
+
+  // Trigger play effect
+  const triggerPlayEffect = () => {
+    // Show heart particles
+    setIsPlaying(true);
+
+    // Clear any existing timer
+    if (playTimerRef.current) {
+      clearTimeout(playTimerRef.current);
+    }
+
+    // Hide hearts after animation completes
+    playTimerRef.current = setTimeout(() => {
+      setIsPlaying(false);
+      playTimerRef.current = null;
+    }, 1500);
+
+    // Trigger button pulse animation
+    playPulseCounterRef.current += 1;
+    setPlayButtonPulse(true);
+    setTimeout(() => {
+      setPlayButtonPulse(false);
+    }, 50);
+  };
+
+  // Trigger happy reaction (smile) for feed/play actions
+  const triggerHappyReaction = () => {
+    // Clear any existing reaction timer
+    if (reactionTimerRef.current) {
+      clearTimeout(reactionTimerRef.current);
+    }
+
+    // Set reacting state and show smile
+    setIsReacting(true);
+    setSplineState('State'); // 'State' is the happy/normal expression
+
+    // Return to stats-based expression after 1.5 seconds
+    reactionTimerRef.current = setTimeout(() => {
+      setIsReacting(false);
+      reactionTimerRef.current = null;
+    }, 1500);
+  };
+
   // Handle action buttons (Feed, Play, Sleep)
   const handleAction = (type: ActionType) => {
     updateStats(type);
+
+    // Trigger play effect when Play button is clicked
+    if (type === 'play') {
+      triggerPlayEffect();
+      triggerHappyReaction();
+    }
+
+    // Trigger happy reaction when Feed button is clicked
+    if (type === 'feed') {
+      triggerHappyReaction();
+    }
+
+    // Trigger sleep expression when Sleep button is clicked
+    if (type === 'sleep') {
+      startSleep();
+      // Clear any existing timer
+      if (sleepTimerRef.current) {
+        clearTimeout(sleepTimerRef.current);
+      }
+      // End sleep after 15 seconds (click character to stop early)
+      sleepTimerRef.current = setTimeout(() => {
+        endSleep();
+        sleepTimerRef.current = null;
+      }, 15000);
+    }
+  };
+
+  // Handle wake up - stop sleep
+  const handleWake = () => {
+    if (sleepTimerRef.current) {
+      clearTimeout(sleepTimerRef.current);
+      sleepTimerRef.current = null;
+    }
+    endSleep();
+  };
+
+  // Handle character click - play action (or wake if sleeping)
+  const handleCharacterClick = () => {
+    if (isSleeping) {
+      handleWake();
+    } else {
+      // Trigger play action when character is clicked
+      handleAction('play');
+    }
   };
 
   // Handle message send
@@ -63,7 +213,7 @@ export const ChatPage: React.FC = () => {
     <div className="relative w-full">
       <Navbar />
 
-      <section className="relative min-h-screen w-full flex flex-col items-center justify-center p-6 sm:p-12 pt-32">
+      <section className="relative min-h-screen w-full flex flex-col items-center px-6 sm:px-12 pb-6 sm:pb-12 pt-36">
         {/* Background Decor */}
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-900/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-900/10 rounded-full blur-[120px]" />
@@ -73,16 +223,29 @@ export const ChatPage: React.FC = () => {
           {/* Left: Stats & Actions */}
           <div className="w-full lg:w-1/4 flex flex-col gap-6 order-2 lg:order-1">
             <StatsPanel stats={stats} />
-            <ActionButtons onAction={handleAction} />
+            <ActionButtons
+              onAction={handleAction}
+              isSleeping={isSleeping}
+              onWake={handleWake}
+              playButtonPulse={playButtonPulse}
+            />
             <PersonaSelector />
           </div>
 
-          {/* Center: 3D Character */}
-          <SplineCharacter
-            onLoad={onSplineLoad}
-            onClick={handleCharacterClick}
-            splineReady={splineReady}
-          />
+          {/* Center: 3D Character with Overlays */}
+          <div className="flex-1 w-full h-[50vh] lg:h-[600px] relative order-1 lg:order-2 overflow-hidden">
+            <SplineCharacter
+              onLoad={onSplineLoad}
+              onClick={handleCharacterClick}
+              splineReady={splineReady}
+              isSleeping={isSleeping}
+              onResetCamera={resetCamera}
+            />
+            {/* Sleep zzz overlay */}
+            <SleepOverlay isSleeping={isSleeping} />
+            {/* Play hearts overlay */}
+            <PlayOverlay isPlaying={isPlaying} />
+          </div>
 
           {/* Right: Chat */}
           <ChatInterface
@@ -91,6 +254,7 @@ export const ChatPage: React.FC = () => {
             isTyping={isTyping}
             onInputChange={setInputValue}
             onSendMessage={handleSendMessage}
+            onClearHistory={clearMessageHistory}
           />
         </div>
 

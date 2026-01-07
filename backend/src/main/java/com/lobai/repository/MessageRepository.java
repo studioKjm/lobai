@@ -155,4 +155,9 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
      */
     @Query("SELECT AVG(m.usageScore) FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.usageScore IS NOT NULL")
     Double getAverageUsageByUser(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 모든 메시지 삭제
+     */
+    void deleteByUserId(Long userId);
 }

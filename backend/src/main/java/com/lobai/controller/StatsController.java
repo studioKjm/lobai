@@ -1,5 +1,6 @@
 package com.lobai.controller;
 
+import com.lobai.dto.request.SetStatsRequest;
 import com.lobai.dto.request.UpdateStatsRequest;
 import com.lobai.dto.response.ApiResponse;
 import com.lobai.dto.response.StatsResponse;
@@ -56,6 +57,25 @@ public class StatsController {
 
         return ResponseEntity
                 .ok(ApiResponse.success("Stats가 업데이트되었습니다", stats));
+    }
+
+    /**
+     * Stats 직접 설정 (슬라이더 컨트롤)
+     *
+     * PATCH /api/stats
+     */
+    @PatchMapping
+    public ResponseEntity<ApiResponse<StatsResponse>> setStats(
+            @Valid @RequestBody SetStatsRequest request) {
+
+        Long userId = SecurityUtil.getCurrentUserId();
+        log.info("Set stats request from user {}: hunger={}, energy={}, happiness={}",
+                userId, request.getHunger(), request.getEnergy(), request.getHappiness());
+
+        StatsResponse stats = statsService.setStats(userId, request);
+
+        return ResponseEntity
+                .ok(ApiResponse.success(stats));
     }
 
     /**

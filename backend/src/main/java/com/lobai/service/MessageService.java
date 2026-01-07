@@ -69,9 +69,9 @@ public class MessageService {
             }
         }
 
-        // 3. 최근 대화 히스토리 조회 (최근 20개 = 10번의 대화 왕복)
-        // 시간순 정렬 (오래된 것부터)
-        Pageable historyPageable = PageRequest.of(0, 20);
+        // 3. 최근 대화 히스토리 조회 (최근 6개 = 3번의 대화 왕복)
+        // gemini-2.5-flash 모델의 503 에러 방지를 위해 히스토리 제한
+        Pageable historyPageable = PageRequest.of(0, 6);
         List<Message> recentHistory = messageRepository
                 .findByUserIdOrderByCreatedAtDesc(userId, historyPageable)
                 .getContent();
@@ -185,5 +185,20 @@ public class MessageService {
         return messages.stream()
                 .map(MessageResponse::from)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 사용자의 대화 히스토리 전체 삭제
+     *
+     * @param userId 사용자 ID
+     */
+    @Transactional
+    public void clearMessageHistory(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId);
+        }
+
+        messageRepository.deleteByUserId(userId);
+        log.info("Message history cleared for user {}", userId);
     }
 }

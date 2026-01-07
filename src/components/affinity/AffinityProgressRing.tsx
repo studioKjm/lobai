@@ -125,26 +125,6 @@ export function AffinityProgressRing({ score, level, levelName }: AffinityProgre
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes orbit {
-          from {
-            transform: rotate(0deg) translateX(58px) rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg) translateX(58px) rotate(-360deg);
-          }
-        }
-
-        @keyframes pulse {
-          0%,
-          100% {
-            opacity: 0.5;
-          }
-          50% {
-            opacity: 0.8;
-          }
-        }
-      `}</style>
     </div>
   );
 }

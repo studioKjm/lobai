@@ -22,7 +22,7 @@ export interface Persona {
   isActive?: boolean;
 }
 
-export type ActionType = 'hunger' | 'energy' | 'happiness';
+export type ActionType = 'feed' | 'play' | 'sleep';
 
 // User types (for future backend integration)
 export interface User {

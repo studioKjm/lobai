@@ -16,20 +16,24 @@ interface ChatState {
   // Actions
   loadStats: () => Promise<void>;
   updateStats: (action: ActionType) => Promise<void>;
+  setStatValue: (statName: keyof Stats, value: number) => void;
+  syncStatsToBackend: () => Promise<void>;
+  sleepTick: () => Promise<void>;
   loadMessages: () => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
   loadPersonas: () => Promise<void>;
   changePersona: (personaId: number) => Promise<void>;
   clearError: () => void;
   resetMessages: () => void;
+  clearMessageHistory: () => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>()((set, get) => ({
-  // Initial state
+  // Initial state (will be overwritten by backend)
   stats: {
-    hunger: 80,
-    energy: 90,
-    happiness: 70
+    hunger: 50,
+    energy: 50,
+    happiness: 50
   },
   messages: [],
   personas: [],
@@ -77,9 +81,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
       // Add bot response for action
       const responses: Record<ActionType, string> = {
-        hunger: "냠냠! 에너지가 충전되고 있어요.",
-        energy: "꿀잠 자고 일어났어요. 몸이 가볍네요!",
-        happiness: "와! 같이 노니까 정말 즐거워요!"
+        feed: "냠냠! 에너지가 충전되고 있어요.",
+        sleep: "꿀잠 자고 일어났어요. 몸이 가볍네요!",
+        play: "와! 같이 노니까 정말 즐거워요!"
       };
 
       set(state => ({
@@ -94,6 +98,59 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const errorMessage = getErrorMessage(error);
       set({ isLoading: false, error: errorMessage });
       toast.error(errorMessage);
+    }
+  },
+
+  // Set individual stat value (for UI controls)
+  setStatValue: (statName: keyof Stats, value: number) => {
+    const clampedValue = Math.max(0, Math.min(100, value));
+    set(state => ({
+      stats: {
+        ...state.stats,
+        [statName]: clampedValue
+      }
+    }));
+  },
+
+  // Sync current stats to backend
+  syncStatsToBackend: async () => {
+    const { stats } = get();
+    try {
+      await api.patch<ApiResponse<Stats>>('/stats', {
+        hunger: stats.hunger,
+        energy: stats.energy,
+        happiness: stats.happiness
+      });
+    } catch (error) {
+      console.error('Failed to sync stats to backend:', getErrorMessage(error));
+    }
+  },
+
+  // Sleep tick - called every second during sleep
+  // Increases energy (+2) and decreases hunger (-1)
+  sleepTick: async () => {
+    const { stats } = get();
+    const newEnergy = Math.min(100, stats.energy + 2);
+    const newHunger = Math.max(0, stats.hunger - 1);
+
+    // Update local state immediately
+    set({
+      stats: {
+        ...stats,
+        energy: newEnergy,
+        hunger: newHunger
+      }
+    });
+
+    // Sync to backend
+    try {
+      await api.patch<ApiResponse<Stats>>('/stats', {
+        hunger: newHunger,
+        energy: newEnergy,
+        happiness: stats.happiness
+      });
+    } catch (error) {
+      console.error('Failed to sync sleep tick to backend:', getErrorMessage(error));
     }
   },
 
@@ -264,5 +321,28 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
       }]
     });
+  },
+
+  // Clear message history (backend + frontend)
+  clearMessageHistory: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      await api.delete<ApiResponse<void>>('/messages');
+
+      set({
+        messages: [{
+          role: 'bot' as const,
+          content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 대화 기록이 초기화되었습니다.'
+        }],
+        isLoading: false
+      });
+
+      toast.success('대화 기록이 초기화되었습니다!');
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      set({ isLoading: false, error: errorMessage });
+      toast.error(errorMessage);
+    }
   }
 }));

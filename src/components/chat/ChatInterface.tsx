@@ -7,6 +7,7 @@ interface ChatInterfaceProps {
   isTyping: boolean;
   onInputChange: (value: string) => void;
   onSendMessage: () => void;
+  onClearHistory?: () => void;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -14,7 +15,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   inputValue,
   isTyping,
   onInputChange,
-  onSendMessage
+  onSendMessage,
+  onClearHistory
 }) => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -34,9 +36,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   return (
     <div className="w-full lg:w-1/3 h-[300px] lg:h-[500px] glass flex flex-col overflow-hidden order-3">
-      <div className="p-4 border-b border-white/5 flex items-center gap-3">
-        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-        <span className="text-xs font-semibold uppercase tracking-widest opacity-60">Neural Interface</span>
+      <div className="p-4 border-b border-white/5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-xs font-semibold uppercase tracking-widest opacity-60">Neural Interface</span>
+        </div>
+        {onClearHistory && (
+          <button
+            onClick={onClearHistory}
+            className="text-xs text-white/40 hover:text-red-400 transition-colors"
+            title="대화 기록 초기화"
+          >
+            초기화
+          </button>
+        )}
       </div>
 
       <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4">

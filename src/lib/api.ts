@@ -1,5 +1,4 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import toast from 'react-hot-toast';
 
 // API Base URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
@@ -37,6 +36,19 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+    // Handle 403 Forbidden - Not authenticated (redirect to login)
+    if (error.response?.status === 403) {
+      // Only redirect if we're not already on auth pages
+      const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+      if (!isAuthEndpoint) {
+        console.warn('403 Forbidden - Not authenticated, redirecting to login');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/';
+        return Promise.reject(error);
+      }
+    }
+
     // Handle 401 Unauthorized - Token expired
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -72,28 +84,13 @@ api.interceptors.response.use(
         // Refresh failed, clear tokens and redirect to login
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        toast.error('세션이 만료되었습니다. 다시 로그인해주세요.');
         window.location.href = '/';
         return Promise.reject(refreshError);
       }
     }
 
-    // Handle 403 Forbidden - Insufficient permissions
-    if (error.response?.status === 403) {
-      toast.error('접근 권한이 없습니다.');
-      // Don't auto-redirect, let components handle it
-    }
-
-    // Handle 500 Internal Server Error
-    if (error.response?.status === 500) {
-      toast.error('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-    }
-
-    // Handle network errors
-    if (!error.response) {
-      toast.error('네트워크 연결을 확인해주세요.');
-    }
-
+    // Let individual components/stores handle error display
+    // to avoid duplicate toasts
     return Promise.reject(error);
   }
 );

@@ -35,13 +35,13 @@ jwt:
 # Gemini API Configuration
 gemini:
   api-key: ${GEMINI_API_KEY:your-gemini-api-key}
-  model: gemini-2.5-flash    # 유료 tier: $0.15/$0.60 per M tokens
+  model: gemini-2.5-flash    # 최신 모델
   temperature: 0.8
   max-output-tokens: 500     # 한국어 1-2문장 답변용
 
 # CORS Configuration
 cors:
-  allowed-origins: http://localhost:3000,http://localhost:5173
+  allowed-origins: http://localhost:3000,http://localhost:5173,http://localhost:8888
   allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
   allowed-headers: "*"
   allow-credentials: true

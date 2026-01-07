@@ -141,7 +141,8 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       partialize: (state) => ({
-        // Only persist user, not tokens (tokens are in localStorage)
+        // Persist both accessToken and user for HMR stability
+        accessToken: state.accessToken,
         user: state.user
       })
     }

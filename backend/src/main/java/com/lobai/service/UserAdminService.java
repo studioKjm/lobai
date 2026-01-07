@@ -86,7 +86,7 @@ public class UserAdminService {
         Integer totalAttendanceDays = user.getTotalAttendanceDays();
         Double affinityScore = affinityScoreRepository.findByUserId(id)
                 .map(AffinityScore::getOverallScore)
-                .map(Double::valueOf)
+                .map(score -> score.doubleValue())
                 .orElse(null);
 
         return UserDetailResponse.builder()
