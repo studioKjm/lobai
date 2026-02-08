@@ -93,6 +93,85 @@ The bot uses **Gemini 3 Flash Preview** with a Korean-language system instructio
 - Stats decay continuously and never persist between sessions
 - The app is designed for Korean-speaking users (UI text and bot responses in Korean)
 
+## Multi-Session Workflow
+
+### 세션 역할 분담
+
+**세션1: 프론트엔드 & UX** 🎨
+- GENKUB 인터페이스 개선
+- HIP 대시보드 개발
+- 사용자 경험 최적화
+- React, TypeScript, TailwindCSS
+
+**세션2: 백엔드 코어** ⚙️
+- Spring Boot API 개발
+- HIP 분석 로직 구현
+- 데이터베이스 관리
+- Java, Spring, MySQL, Gemini AI
+
+**세션3: 블록체인 인프라** 🔐 (현재 세션)
+- Smart Contract 개발 (Solidity)
+- Polygon/Ethereum 통합
+- IPFS 분산 저장
+- Web3j 연동
+
+### 세션 간 협업 규칙
+
+1. **작업 시작 시**: 다른 세션의 진행 상황 확인
+   ```bash
+   git status
+   git log --oneline -5
+   ```
+
+2. **충돌 방지**: 세션별 브랜치 전략
+   - `session1/feature-name`
+   - `session2/feature-name`
+   - `session3/blockchain-integration`
+
+3. **세션 인수인계**: 작업 완료 후 문서화
+   - 진행 사항을 `SESSION_LOG.md`에 기록
+   - 미완료 작업은 TODO로 명시
+
+### 세션3 전용 규칙 (블록체인)
+
+#### 작업 환경
+
+**필수 도구**:
+- Node.js 18+ (Hardhat)
+- Java 17+ (Web3j)
+- Polygon Mumbai 테스트넷 RPC
+- IPFS 클라이언트
+
+**환경 변수** (`.env.local`):
+```bash
+# Blockchain
+POLYGON_RPC_URL=https://rpc-mumbai.maticvigil.com
+PRIVATE_KEY=your_private_key
+CONTRACT_ADDRESS=deployed_contract_address
+
+# IPFS
+IPFS_API_URL=https://ipfs.infura.io:5001
+IPFS_API_KEY=your_api_key
+IPFS_API_SECRET=your_api_secret
+```
+
+#### 작업 유형별 도구
+
+| 작업 | 도구 | 사용 시점 |
+|------|------|----------|
+| Smart Contract 작성 | Hardhat, Remix | Solidity 개발 |
+| Contract 배포 | Hardhat scripts | 테스트넷/메인넷 배포 |
+| Web3 통합 | Web3j, `backend-developer-agent` | Spring Boot 연동 |
+| IPFS 연동 | Pinata API, Java IPFS | 데이터 저장 |
+| 보안 검증 | `security-agent` | Contract Audit |
+| 테스트 | Hardhat Test, `test-engineer-agent` | 배포 전 검증 |
+
+#### 자동 사용 규칙 (세션3)
+
+1. **Smart Contract 작성 전**: `security-agent`로 취약점 검토
+2. **Web3 통합 시**: `backend-developer-agent` 활용
+3. **배포 전**: Hardhat 테스트 100% 통과 확인
+
 ## Agent & Tool Usage Guidelines
 
 ### 작업 유형별 권장 도구
