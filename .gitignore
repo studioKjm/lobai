@@ -25,3 +25,6 @@ dist-ssr
 
 # Claude Code (only exclude local settings)
 .claude/settings.local.json
+
+# MCP configuration with secrets
+.mcp.json
