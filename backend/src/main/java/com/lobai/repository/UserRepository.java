@@ -52,6 +52,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findRecentlyLoggedInUsers(@Param("since") LocalDateTime since);
 
     /**
+     * 최근 활성 사용자 조회 (메시지를 보낸 사용자)
+     * HIP 재분석 스케줄러에서 사용
+     */
+    @Query("SELECT DISTINCT u FROM User u " +
+           "JOIN Message m ON m.user.id = u.id " +
+           "WHERE m.createdAt >= :since AND m.role = 'user'")
+    List<User> findActiveUsersSince(@Param("since") LocalDateTime since);
+
+    /**
      * 특정 페르소나를 사용하는 사용자 수 조회
      */
     @Query("SELECT COUNT(u) FROM User u WHERE u.currentPersona.id = :personaId")

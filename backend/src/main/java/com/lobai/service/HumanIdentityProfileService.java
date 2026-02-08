@@ -5,12 +5,16 @@ import com.lobai.repository.*;
 import com.lobai.util.HipIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -31,6 +35,7 @@ public class HumanIdentityProfileService {
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
     private final AffinityScoreRepository affinityScoreRepository;
+    private final GeminiService geminiService;
 
     /**
      * 사용자의 HIP 초기 생성
@@ -87,7 +92,7 @@ public class HumanIdentityProfileService {
 
     /**
      * HIP 재분석 및 업데이트
-     * AffinityScore, Message 등의 데이터를 기반으로 HIP 재계산
+     * AffinityScore + Gemini AI 분석을 결합하여 HIP 재계산
      */
     @Transactional
     public HumanIdentityProfile reanalyzeProfile(Long userId) {
@@ -97,58 +102,115 @@ public class HumanIdentityProfileService {
         BigDecimal previousScore = hip.getOverallHipScore();
 
         // 1. AffinityScore 기반 점수 계산
+        Map<String, BigDecimal> affinityScores = new HashMap<>();
         Optional<AffinityScore> affinityOpt = affinityScoreRepository.findByUserId(userId);
 
         if (affinityOpt.isPresent()) {
             AffinityScore affinity = affinityOpt.get();
 
             // Core Scores 계산 (AffinityScore의 개별 점수들을 HIP 점수로 매핑)
-            BigDecimal cognitiveFlexibility = calculateCognitiveFlexibility(affinity);
-            BigDecimal collaborationPattern = calculateCollaborationPattern(affinity);
-            BigDecimal informationProcessing = calculateInformationProcessing(affinity);
-            BigDecimal emotionalIntelligence = calculateEmotionalIntelligence(affinity);
-            BigDecimal creativity = calculateCreativity(affinity);
-            BigDecimal ethicalAlignment = calculateEthicalAlignment(affinity);
+            affinityScores.put("cognitiveFlexibility", calculateCognitiveFlexibility(affinity));
+            affinityScores.put("collaborationPattern", calculateCollaborationPattern(affinity));
+            affinityScores.put("informationProcessing", calculateInformationProcessing(affinity));
+            affinityScores.put("emotionalIntelligence", calculateEmotionalIntelligence(affinity));
+            affinityScores.put("creativity", calculateCreativity(affinity));
+            affinityScores.put("ethicalAlignment", calculateEthicalAlignment(affinity));
 
-            // HIP Core Scores 업데이트
-            hip.updateCoreScores(
-                cognitiveFlexibility,
-                collaborationPattern,
-                informationProcessing,
-                emotionalIntelligence,
-                creativity,
-                ethicalAlignment
-            );
+            log.info("AffinityScore-based HIP scores calculated for user: {}", userId);
+        } else {
+            log.warn("No AffinityScore found for user: {}, using defaults", userId);
         }
 
-        // 2. Message 기반 데이터 품질 점수 업데이트
+        // 2. Gemini AI 분석 (NEW!)
+        List<Message> recentMessages = messageRepository.findRecentUserMessages(
+            userId, PageRequest.of(0, 50)
+        );
+
+        Map<String, BigDecimal> geminiScores = new HashMap<>();
+        if (!recentMessages.isEmpty()) {
+            try {
+                geminiScores = geminiService.analyzeHumanIdentity(recentMessages);
+                log.info("Gemini HIP analysis completed for user: {} with {} messages",
+                    userId, recentMessages.size());
+            } catch (Exception e) {
+                log.error("Gemini HIP analysis failed for user: {}, using AffinityScore only", userId, e);
+            }
+        } else {
+            log.warn("No messages found for user: {}, skipping Gemini analysis", userId);
+        }
+
+        // 3. AffinityScore + Gemini 가중 평균 (40% + 60%)
+        BigDecimal cognitiveFlexibility = combineScores(
+            affinityScores.get("cognitiveFlexibility"),
+            geminiScores.get("cognitiveFlexibility")
+        );
+        BigDecimal collaborationPattern = combineScores(
+            affinityScores.get("collaborationPattern"),
+            geminiScores.get("collaborationPattern")
+        );
+        BigDecimal informationProcessing = combineScores(
+            affinityScores.get("informationProcessing"),
+            geminiScores.get("informationProcessing")
+        );
+        BigDecimal emotionalIntelligence = combineScores(
+            affinityScores.get("emotionalIntelligence"),
+            geminiScores.get("emotionalIntelligence")
+        );
+        BigDecimal creativity = combineScores(
+            affinityScores.get("creativity"),
+            geminiScores.get("creativity")
+        );
+        BigDecimal ethicalAlignment = combineScores(
+            affinityScores.get("ethicalAlignment"),
+            geminiScores.get("ethicalAlignment")
+        );
+
+        log.info("Combined HIP scores: cognitive={}, collaboration={}, information={}, emotional={}, creativity={}, ethical={}",
+            cognitiveFlexibility, collaborationPattern, informationProcessing,
+            emotionalIntelligence, creativity, ethicalAlignment);
+
+        // 4. HIP Core Scores 업데이트
+        hip.updateCoreScores(
+            cognitiveFlexibility,
+            collaborationPattern,
+            informationProcessing,
+            emotionalIntelligence,
+            creativity,
+            ethicalAlignment
+        );
+
+        // 5. Message 기반 데이터 품질 점수 업데이트
         long messageCount = messageRepository.countByUserId(userId);
         hip.updateDataQualityScore((int) messageCount);
 
-        // 3. 상호작용 수 업데이트
+        // 6. 상호작용 수 업데이트
         hip.setTotalInteractions((int) messageCount);
 
-        // 4. AI Trust Score 계산 (Overall HIP Score 기반)
+        // 7. AI Trust Score 계산 (Overall HIP Score 기반)
         BigDecimal trustScore = hip.getOverallHipScore().multiply(BigDecimal.valueOf(0.9));
         hip.setAiTrustScore(trustScore);
 
-        // 5. 저장
+        // 8. 저장
         HumanIdentityProfile updatedHip = hipRepository.save(hip);
 
-        // 6. 검증 로그 생성
+        // 9. 검증 로그 생성
+        String analysisMethod = !geminiScores.isEmpty()
+            ? "gemini_ai_combined"
+            : "affinity_score_only";
+
         IdentityVerificationLog verificationLog = IdentityVerificationLog.builder()
             .hipId(hip.getHipId())
             .verificationType("periodic")
-            .verificationMethod("behavioral_analysis")
+            .verificationMethod(analysisMethod)
             .previousScore(previousScore)
             .newScore(hip.getOverallHipScore())
             .status("verified")
-            .notes("Automatic reanalysis based on user data")
+            .notes("Automatic reanalysis with Gemini AI + AffinityScore (60%/40%)")
             .build();
         verificationLogRepository.save(verificationLog);
 
-        log.info("Reanalyzed HIP: {} - Score: {} -> {}",
-            hip.getHipId(), previousScore, hip.getOverallHipScore());
+        log.info("Reanalyzed HIP: {} - Score: {} -> {} (method: {})",
+            hip.getHipId(), previousScore, hip.getOverallHipScore(), analysisMethod);
 
         return updatedHip;
     }
@@ -222,6 +284,28 @@ public class HumanIdentityProfileService {
     }
 
     // ==================== Private Helper Methods ====================
+
+    /**
+     * AffinityScore와 Gemini 점수를 가중 평균으로 결합
+     * AffinityScore: 40%, Gemini: 60%
+     */
+    private BigDecimal combineScores(BigDecimal affinityScore, BigDecimal geminiScore) {
+        if (affinityScore == null && geminiScore == null) {
+            return BigDecimal.valueOf(50.0); // 기본값
+        }
+        if (affinityScore == null) {
+            return geminiScore;
+        }
+        if (geminiScore == null) {
+            return affinityScore;
+        }
+
+        // 가중 평균: AffinityScore 40% + Gemini 60%
+        BigDecimal weighted = affinityScore.multiply(BigDecimal.valueOf(0.4))
+            .add(geminiScore.multiply(BigDecimal.valueOf(0.6)));
+
+        return weighted.setScale(1, RoundingMode.HALF_UP);
+    }
 
     /**
      * 인지적 유연성 계산

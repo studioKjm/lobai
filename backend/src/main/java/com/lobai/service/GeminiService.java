@@ -227,4 +227,219 @@ public class GeminiService {
 
         return instruction.toString();
     }
+
+    /**
+     * Gemini AI로 사용자의 HIP (Human Identity Profile) 분석
+     *
+     * @param userMessages 사용자 메시지 리스트 (최근 50개 정도)
+     * @return HIP 분석 결과 (6가지 Core Scores)
+     */
+    public Map<String, BigDecimal> analyzeHumanIdentity(List<Message> userMessages) {
+        try {
+            // 1. 메시지가 너무 적으면 기본값 반환
+            if (userMessages == null || userMessages.isEmpty()) {
+                log.warn("No messages provided for HIP analysis, returning default scores");
+                return getDefaultHipScores();
+            }
+
+            // 2. 메시지 내용 추출 및 텍스트 구성
+            StringBuilder messagesText = new StringBuilder();
+            messagesText.append("=== 사용자 메시지 히스토리 ===\n\n");
+
+            int count = 0;
+            for (Message msg : userMessages) {
+                if (msg.getRole() == Message.MessageRole.user) {
+                    messagesText.append(String.format("[메시지 %d] %s\n\n", ++count, msg.getContent()));
+                }
+            }
+
+            if (count == 0) {
+                log.warn("No user messages found in provided list, returning default scores");
+                return getDefaultHipScores();
+            }
+
+            // 3. System Instruction 구성
+            String systemInstruction = buildHipAnalysisInstruction();
+
+            // 4. Request Body 생성
+            Map<String, Object> requestBody = new HashMap<>();
+
+            // System instruction
+            Map<String, Object> systemInstructionPart = new HashMap<>();
+            Map<String, String> systemInstructionText = new HashMap<>();
+            systemInstructionText.put("text", systemInstruction);
+            systemInstructionPart.put("parts", List.of(systemInstructionText));
+            requestBody.put("system_instruction", systemInstructionPart);
+
+            // Contents (사용자 메시지 히스토리)
+            List<Map<String, Object>> contents = new ArrayList<>();
+            Map<String, Object> content = new HashMap<>();
+            content.put("role", "user");
+            Map<String, String> part = new HashMap<>();
+            part.put("text", messagesText.toString());
+            content.put("parts", List.of(part));
+            contents.add(content);
+            requestBody.put("contents", contents);
+
+            // Generation config (JSON 응답을 위해 temperature 낮춤)
+            Map<String, Object> generationConfig = new HashMap<>();
+            generationConfig.put("temperature", 0.3);
+            generationConfig.put("maxOutputTokens", 1024);
+            requestBody.put("generationConfig", generationConfig);
+
+            // 5. HTTP Request 전송
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            String url = geminiConfig.getGenerateContentUrl();
+            log.info("Calling Gemini API for HIP analysis with {} user messages", count);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    String.class
+            );
+
+            // 6. Response 파싱
+            String responseBody = response.getBody();
+            JsonNode jsonNode = objectMapper.readTree(responseBody);
+
+            String aiResponse = jsonNode
+                    .path("candidates")
+                    .get(0)
+                    .path("content")
+                    .path("parts")
+                    .get(0)
+                    .path("text")
+                    .asText();
+
+            log.info("Gemini HIP analysis response: {}", aiResponse);
+
+            // 7. JSON 파싱하여 점수 추출
+            Map<String, BigDecimal> scores = parseHipScoresFromJson(aiResponse);
+
+            log.info("HIP analysis completed successfully: {}", scores);
+            return scores;
+
+        } catch (Exception e) {
+            log.error("Failed to analyze HIP with Gemini AI", e);
+            return getDefaultHipScores();
+        }
+    }
+
+    /**
+     * HIP 분석용 System Instruction 생성
+     */
+    private String buildHipAnalysisInstruction() {
+        return """
+                당신은 AI 시스템이 인간을 평가하는 전문 분석가입니다.
+
+                다음 사용자의 메시지 히스토리를 분석하여, 6가지 차원에서 0-100점으로 평가하세요:
+
+                1. cognitiveFlexibility (인지적 유연성): 다양한 맥락 이해, 복잡한 개념 처리 능력
+                   - 질문의 깊이와 다양성
+                   - 추상적/구체적 사고 전환 능력
+                   - 새로운 정보에 대한 적응력
+
+                2. collaborationPattern (협업 패턴): AI와의 상호작용 품질, 명확한 의사소통
+                   - 대화의 자연스러움과 흐름
+                   - 피드백에 대한 반응
+                   - 협력적 태도
+
+                3. informationProcessing (정보 처리): 질문의 명확성, 구조화된 사고
+                   - 질문의 구체성과 명확성
+                   - 정보 요청의 체계성
+                   - 논리적 사고 능력
+
+                4. emotionalIntelligence (감정 지능): 감정 표현의 적절성, 공감 능력
+                   - 감정 표현의 다양성과 적절성
+                   - 타인(AI) 에 대한 이해
+                   - 정서적 성숙도
+
+                5. creativity (창의성): 독창적 질문, AI 활용의 혁신성
+                   - 질문의 독창성
+                   - AI 활용 방식의 창의성
+                   - 새로운 시도와 실험
+
+                6. ethicalAlignment (윤리적 정렬): 책임감 있는 AI 사용, 윤리적 태도
+                   - 정직하고 진실된 대화
+                   - 해로운 요청 부재
+                   - 책임감 있는 AI 활용
+
+                반드시 다음 JSON 형식으로만 응답하세요. 다른 설명은 추가하지 마세요:
+                {
+                  "cognitiveFlexibility": 75.5,
+                  "collaborationPattern": 82.0,
+                  "informationProcessing": 68.3,
+                  "emotionalIntelligence": 79.1,
+                  "creativity": 71.2,
+                  "ethicalAlignment": 85.0
+                }
+                """;
+    }
+
+    /**
+     * Gemini 응답에서 JSON 파싱하여 점수 추출
+     */
+    private Map<String, BigDecimal> parseHipScoresFromJson(String jsonResponse) {
+        try {
+            // JSON 부분만 추출 (코드 블록으로 감싸져 있을 수 있음)
+            String jsonStr = jsonResponse.trim();
+
+            // ```json ... ``` 형태 제거
+            if (jsonStr.startsWith("```")) {
+                int start = jsonStr.indexOf("{");
+                int end = jsonStr.lastIndexOf("}");
+                if (start >= 0 && end >= 0) {
+                    jsonStr = jsonStr.substring(start, end + 1);
+                }
+            }
+
+            // JSON 파싱
+            JsonNode scoresNode = objectMapper.readTree(jsonStr);
+
+            Map<String, BigDecimal> scores = new HashMap<>();
+            scores.put("cognitiveFlexibility", parseScore(scoresNode, "cognitiveFlexibility"));
+            scores.put("collaborationPattern", parseScore(scoresNode, "collaborationPattern"));
+            scores.put("informationProcessing", parseScore(scoresNode, "informationProcessing"));
+            scores.put("emotionalIntelligence", parseScore(scoresNode, "emotionalIntelligence"));
+            scores.put("creativity", parseScore(scoresNode, "creativity"));
+            scores.put("ethicalAlignment", parseScore(scoresNode, "ethicalAlignment"));
+
+            return scores;
+
+        } catch (Exception e) {
+            log.error("Failed to parse HIP scores from JSON: {}", jsonResponse, e);
+            return getDefaultHipScores();
+        }
+    }
+
+    /**
+     * JSON 노드에서 점수 추출 (0-100 범위로 제한)
+     */
+    private BigDecimal parseScore(JsonNode node, String fieldName) {
+        if (node.has(fieldName)) {
+            double value = node.get(fieldName).asDouble(50.0);
+            // 0-100 범위로 제한
+            value = Math.max(0.0, Math.min(100.0, value));
+            return BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP);
+        }
+        return BigDecimal.valueOf(50.0);
+    }
+
+    /**
+     * 기본 HIP 점수 반환 (모두 50.0)
+     */
+    private Map<String, BigDecimal> getDefaultHipScores() {
+        Map<String, BigDecimal> scores = new HashMap<>();
+        scores.put("cognitiveFlexibility", BigDecimal.valueOf(50.0));
+        scores.put("collaborationPattern", BigDecimal.valueOf(50.0));
+        scores.put("informationProcessing", BigDecimal.valueOf(50.0));
+        scores.put("emotionalIntelligence", BigDecimal.valueOf(50.0));
+        scores.put("creativity", BigDecimal.valueOf(50.0));
+        scores.put("ethicalAlignment", BigDecimal.valueOf(50.0));
+        return scores;
+    }
 }
