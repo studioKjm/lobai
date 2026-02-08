@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -159,6 +161,11 @@ public class GeminiService {
 
     /**
      * System Instruction 구성
+     *
+     * 상태값에 따라 AI의 성격과 반응을 동적으로 조절합니다.
+     * - 포만감(hunger): 0-100 (100=배부름, 0=배고픔)
+     * - 에너지(energy): 0-100 (100=활력넘침, 0=피곤함)
+     * - 행복도(happiness): 0-100 (100=행복, 0=우울)
      */
     private String buildSystemInstruction(Persona persona, Integer hunger, Integer energy, Integer happiness) {
         StringBuilder instruction = new StringBuilder();
@@ -167,27 +174,56 @@ public class GeminiService {
         instruction.append(persona.getSystemInstruction());
         instruction.append("\n\n");
 
-        // 현재 상태 정보
-        instruction.append(String.format(
-                "현재 Lobi(AI 로봇)의 상태:\n" +
-                "- 배고픔: %d%%\n" +
-                "- 에너지: %d%%\n" +
-                "- 행복도: %d%%\n\n",
-                hunger, energy, happiness
-        ));
+        // 현재 상태 정보 (명확하게 수치와 의미 전달)
+        instruction.append("=== 현재 Lobi의 상태 ===\n");
 
-        // 상태에 따른 추가 지침
-        if (hunger < 30) {
-            instruction.append("현재 매우 배고픈 상태입니다. 배고픔을 자연스럽게 표현하세요.\n");
-        }
-        if (energy < 30) {
-            instruction.append("현재 매우 피곤한 상태입니다. 에너지 부족을 자연스럽게 표현하세요.\n");
-        }
-        if (happiness < 30) {
-            instruction.append("현재 기분이 좋지 않은 상태입니다. 우울함을 자연스럽게 표현하세요.\n");
+        // 포만감 상태 설명
+        instruction.append(String.format("포만감: %d%% - ", hunger));
+        if (hunger >= 80) {
+            instruction.append("배가 부르고 만족스러운 상태입니다. 배고프다는 말을 하면 안 됩니다.\n");
+        } else if (hunger >= 50) {
+            instruction.append("적당히 배가 찬 상태입니다. 배고프다는 말을 하면 안 됩니다.\n");
+        } else if (hunger >= 30) {
+            instruction.append("조금 출출한 상태입니다. 가볍게 배고픔을 암시할 수 있습니다.\n");
+        } else {
+            instruction.append("매우 배고픈 상태입니다. 배고픔을 자연스럽게 표현하세요.\n");
         }
 
-        instruction.append("\n답변은 1-2문장으로 짧고 간결하게 작성하세요.");
+        // 에너지 상태 설명
+        instruction.append(String.format("에너지: %d%% - ", energy));
+        if (energy >= 80) {
+            instruction.append("활력이 넘치는 상태입니다. 피곤하다는 말을 하면 안 됩니다.\n");
+        } else if (energy >= 50) {
+            instruction.append("적당한 에너지 상태입니다. 피곤하다는 말을 하면 안 됩니다.\n");
+        } else if (energy >= 30) {
+            instruction.append("조금 피곤한 상태입니다. 가볍게 피로감을 표현할 수 있습니다.\n");
+        } else {
+            instruction.append("매우 피곤한 상태입니다. 피곤함을 자연스럽게 표현하세요.\n");
+        }
+
+        // 행복도 상태 설명
+        instruction.append(String.format("행복도: %d%% - ", happiness));
+        if (happiness >= 80) {
+            instruction.append("매우 행복하고 기분 좋은 상태입니다.\n");
+        } else if (happiness >= 50) {
+            instruction.append("평온하고 안정된 상태입니다.\n");
+        } else if (happiness >= 30) {
+            instruction.append("조금 심심하거나 우울한 상태입니다.\n");
+        } else {
+            instruction.append("기분이 좋지 않은 상태입니다. 우울함을 표현할 수 있습니다.\n");
+        }
+
+        instruction.append("\n");
+
+        // 종합 상태 요약
+        if (hunger >= 70 && energy >= 70 && happiness >= 70) {
+            instruction.append("** 현재 컨디션이 매우 좋습니다! 밝고 활기차게 대화하세요. **\n");
+        } else if (hunger < 30 || energy < 30 || happiness < 30) {
+            instruction.append("** 현재 컨디션이 좋지 않습니다. 해당 상태를 자연스럽게 대화에 반영하세요. **\n");
+        }
+
+        instruction.append("\n중요: 위 상태 수치를 반드시 반영하여 대화하세요. 상태가 좋은데 부정적으로, 상태가 나쁜데 긍정적으로 말하면 안 됩니다.");
+        instruction.append("\n답변은 짧고 간결하게 작성하세요.");
 
         return instruction.toString();
     }

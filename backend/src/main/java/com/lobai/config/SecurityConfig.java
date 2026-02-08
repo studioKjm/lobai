@@ -42,6 +42,9 @@ public class SecurityConfig {
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/personas").permitAll()  // 페르소나 목록은 공개
+                .requestMatchers("/api/hip/ranking").permitAll()  // HIP 랭킹 공개
+                .requestMatchers("/api/hip/HIP-*").permitAll()    // HIP ID로 조회 공개
+                .requestMatchers("/api/certificate/*/verify").permitAll()  // 인증서 검증 공개
 
                 // All other endpoints require authentication
                 .anyRequest().authenticated()

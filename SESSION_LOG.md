@@ -59,8 +59,16 @@
    - [x] Mumbai 배포 단계별 안내
    - [x] package.json 스크립트 추가 (interact, verify, clean)
 
+9. **배포 준비 완료** ✅ (Day 2 완료)
+   - [x] Mumbai 배포 체크리스트 작성 (MUMBAI_DEPLOYMENT_CHECKLIST.md)
+   - [x] 로컬 커밋 완료 (blockchain 모듈)
+   - [x] 보안 강화 (.mcp.json → .mcp.json.example)
+
 #### 🚧 진행 중
-- 없음 (Day 2 작업 100% 완료)
+- **Push 대기 중** (GitHub Secret Protection)
+  - 이전 커밋의 Notion API Token 감지됨
+  - 해결: https://github.com/studioKjm/lobai/security/secret-scanning/unblock-secret/39NoPRkLol8LEOM4ZjZ6VJydqAK
+  - 로컬 작업은 완료, 푸시만 대기
 
 #### 📋 다음 작업 (세션3)
 - **Day 3**: Polygon Mumbai 테스트넷 배포 (실제 배포)
@@ -87,13 +95,50 @@
 
 ---
 
-## 세션1 & 세션2 작업 현황
+## 세션1: 프론트엔드 & UX 작업 현황 🎨
+
+### ✅ 완료 작업 (2026-02-08)
+
+#### 1. HIP Dashboard 개발 (Phase 1)
+- [x] HIPDashboard 페이지 생성
+- [x] IdentityCard 컴포넌트
+- [x] ScoreChart 컴포넌트 (Recharts 레이더 차트)
+- [x] RankingPage 구현
+- [x] PublicProfilePage 구현
+- [x] Mock API 구현 (src/api/hipApi.ts)
+- [x] 전체 UI 한글화 완료
+
+#### 2. 블록체인 통합 (Phase 1.5) 🔥 NEW!
+- [x] ethers.js 5.7.2 설치
+- [x] Contract ABI 추출 및 통합
+- [x] 블록체인 설정 파일 생성 (src/config/blockchain.ts)
+- [x] Web3 유틸리티 구현 (src/utils/web3.ts)
+- [x] BlockchainSection 컴포넌트 생성
+- [x] HIP Dashboard에 블록체인 섹션 통합
+- [x] MetaMask 연결 기능
+- [x] 신원 등록/조회 UI
+
+**테스트 완료**:
+- ✅ Hardhat 로컬 노드 실행 (http://127.0.0.1:8545)
+- ✅ Smart Contract 배포 (0x5FbDB2315678afecb367f032d93F642f64180aa3)
+- ✅ Frontend 통합 완료 (http://localhost:5175/dashboard)
+
+### 📋 다음 작업 (세션1)
+- [ ] Real API 전환 (Mock → Backend)
+- [ ] RankingPage & PublicProfilePage 한글화
+- [ ] GENKUB 인터페이스에 HIP 통합
+- [ ] 반응형 디자인 개선
+- [ ] Mumbai 테스트넷 배포 후 UI 테스트
+
+---
+
+## 세션2: 백엔드 코어 작업 현황 ⚙️
 
 **상태**: 역할 확정 완료, 작업 미시작
 
 **대기 중인 작업**:
-- 세션1: GENKUB UI/UX 개선, HIP 대시보드 구현
 - 세션2: Phase 1 HIP 시스템 테스트 및 검증
+- Real API 엔드포인트 구현 (GET /api/hip/my, POST /api/hip/reanalyze)
 
 ---
 

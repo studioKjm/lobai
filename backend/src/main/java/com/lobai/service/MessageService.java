@@ -165,8 +165,11 @@ public class MessageService {
         List<Message> messages = messageRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
                 .getContent();
 
-        // DTO 변환 (최신순 → 오래된순으로 역순 정렬)
-        return messages.stream()
+        // 역순 정렬 (최신순 → 오래된순)
+        List<Message> reversed = new ArrayList<>(messages);
+        java.util.Collections.reverse(reversed);
+
+        return reversed.stream()
                 .map(MessageResponse::from)
                 .collect(Collectors.toList());
     }

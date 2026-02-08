@@ -40,6 +40,12 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
+    // Apache Commons Codec (for HIP ID generation)
+    implementation 'commons-codec:commons-codec:1.15'
+
+    // Google Generative AI (Gemini)
+    implementation 'com.google.cloud:google-cloud-aiplatform:3.34.0'
+
     // Development Tools
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
 

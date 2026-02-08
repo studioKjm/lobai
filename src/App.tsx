@@ -4,6 +4,9 @@ import { Toaster } from 'react-hot-toast';
 import { LandingPage } from '@/pages/LandingPage';
 import { ChatPage } from '@/pages/ChatPage';
 import { AdminPage } from '@/pages/AdminPage';
+import HIPDashboard from '@/pages/HIPDashboard';
+import RankingPage from '@/pages/RankingPage';
+import PublicProfilePage from '@/pages/PublicProfilePage';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -55,6 +58,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <HIPDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/dashboard/ranking" element={<RankingPage />} />
+        <Route path="/hip/:hipId" element={<PublicProfilePage />} />
         <Route
           path="/admin"
           element={
