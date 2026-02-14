@@ -3,8 +3,10 @@ package com.lobai.service;
 import com.lobai.dto.request.SetStatsRequest;
 import com.lobai.dto.request.UpdateStatsRequest;
 import com.lobai.dto.response.StatsResponse;
+import com.lobai.entity.AffinityScore;
 import com.lobai.entity.User;
 import com.lobai.entity.UserStatsHistory;
+import com.lobai.repository.AffinityScoreRepository;
 import com.lobai.repository.UserRepository;
 import com.lobai.repository.UserStatsHistoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class StatsService {
 
     private final UserRepository userRepository;
     private final UserStatsHistoryRepository userStatsHistoryRepository;
+    private final AffinityScoreRepository affinityScoreRepository;
 
     /**
      * 사용자의 현재 Stats 조회
@@ -36,7 +39,11 @@ public class StatsService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
 
-        return StatsResponse.from(user);
+        Integer trustScore = affinityScoreRepository.findByUserId(userId)
+                .map(as -> as.getOverallScore().intValue())
+                .orElse(50);
+
+        return StatsResponse.from(user, trustScore);
     }
 
     /**

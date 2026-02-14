@@ -4,6 +4,7 @@ export interface Stats {
   hunger: number;
   energy: number;
   happiness: number;
+  trust: number;
 }
 
 export interface Message {
@@ -38,6 +39,7 @@ export interface User {
   currentEnergy: number;
   currentHappiness: number;
   currentPersonaId?: number;
+  trustLevel?: number;
 }
 
 // Auth types (for future backend integration)

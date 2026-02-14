@@ -10,6 +10,7 @@ import { PlayOverlay } from '@/components/chat/PlayOverlay';
 import { AttendanceCard } from '@/components/attendance/AttendanceCard';
 import { ChatDashboardSection } from '@/components/dashboard/ChatDashboardSection';
 import { LobCoinBalance } from '@/components/chat/LobCoinBalance';
+import { UserLevelBadge } from '@/components/chat/UserLevelBadge';
 import { useSplineLoader } from '@/hooks/useSplineLoader';
 import { useChatStore } from '@/stores/chatStore';
 import type { ActionType } from '@/types';
@@ -258,7 +259,10 @@ export const ChatPage: React.FC = () => {
 
           {/* Right: Chat with LobCoin */}
           <div className="w-full lg:w-1/3 flex flex-col gap-3 order-3">
-            {/* LobCoin Balance - Above Chat */}
+            {/* Human Level Badge */}
+            <UserLevelBadge />
+
+            {/* LobCoin Balance */}
             <LobCoinBalance />
 
             {/* Chat Interface */}

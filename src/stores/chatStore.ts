@@ -46,7 +46,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   stats: {
     hunger: 50,
     energy: 50,
-    happiness: 50
+    happiness: 50,
+    trust: 50
   },
   messages: [],
   personas: [],
@@ -69,7 +70,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         stats: {
           hunger: statsData.hunger,
           energy: statsData.energy,
-          happiness: statsData.happiness
+          happiness: statsData.happiness,
+          trust: statsData.trust ?? 50
         }
       });
     } catch (error) {
@@ -87,14 +89,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const response = await api.put<ApiResponse<Stats>>('/stats', { action });
       const updatedStats = response.data.data;
 
-      set({
+      set(state => ({
         stats: {
           hunger: updatedStats.hunger,
           energy: updatedStats.energy,
-          happiness: updatedStats.happiness
+          happiness: updatedStats.happiness,
+          trust: updatedStats.trust ?? state.stats.trust
         },
         isLoading: false
-      });
+      }));
 
       // Add bot response for action
       const responses: Record<ActionType, string> = {
