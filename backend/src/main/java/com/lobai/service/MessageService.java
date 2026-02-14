@@ -391,6 +391,56 @@ public class MessageService {
                     String.format("일일 첫 체크인 (%s)", today)
             );
             log.info("Daily check-in reward (10 LobCoin) given to user {}", userId);
+
+            // 연속 채팅 스트릭 보너스
+            int chatStreak = calculateChatStreak(userId, today);
+            int streakBonus = getChatStreakBonus(chatStreak);
+            if (streakBonus > 0) {
+                lobCoinService.earnLobCoin(
+                        userId,
+                        streakBonus,
+                        "CHAT_STREAK",
+                        String.format("%d일 연속 채팅 보너스", chatStreak)
+                );
+                log.info("Chat streak bonus ({} LobCoin) for {}d streak, user {}",
+                        streakBonus, chatStreak, userId);
+            }
         }
+    }
+
+    /**
+     * 연속 채팅일 계산 (오늘 포함)
+     */
+    private int calculateChatStreak(Long userId, java.time.LocalDate today) {
+        // 최근 120일간 채팅한 날짜 조회
+        java.time.LocalDateTime since = today.minusDays(120).atStartOfDay();
+        List<java.sql.Date> chatDates = messageRepository.findDistinctChatDatesByUserId(userId, since);
+
+        if (chatDates == null || chatDates.isEmpty()) return 1;
+
+        int streak = 0;
+        java.time.LocalDate expected = today;
+
+        for (java.sql.Date sqlDate : chatDates) {
+            java.time.LocalDate chatDate = sqlDate.toLocalDate();
+            if (chatDate.equals(expected)) {
+                streak++;
+                expected = expected.minusDays(1);
+            } else if (chatDate.isBefore(expected)) {
+                break; // 연속 끊김
+            }
+        }
+
+        return Math.max(streak, 1);
+    }
+
+    /**
+     * 연속 채팅 스트릭 보너스 (매일 지급되는 추가 보너스)
+     */
+    private int getChatStreakBonus(int streak) {
+        if (streak >= 30) return 20;  // 30일+: 매일 +20
+        if (streak >= 14) return 10;  // 14일+: 매일 +10
+        if (streak >= 7) return 5;    // 7일+: 매일 +5
+        return 0;
     }
 }

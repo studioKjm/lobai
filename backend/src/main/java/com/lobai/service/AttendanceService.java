@@ -25,6 +25,7 @@ public class AttendanceService {
 
     private final AttendanceRepository attendanceRepository;
     private final UserRepository userRepository;
+    private final LobCoinService lobCoinService;
 
     /**
      * 출석 체크
@@ -65,6 +66,23 @@ public class AttendanceService {
         // 6. 사용자 출석 정보 업데이트
         user.updateAttendance(streakCount);
         userRepository.save(user);
+
+        // 7. LobCoin 보상 지급
+        try {
+            String description = String.format("출석 체크 (%s, %d일 연속)", today, streakCount);
+            lobCoinService.earnLobCoin(userId, rewardPoints, "ATTENDANCE", description);
+
+            // 스트릭 마일스톤 보너스
+            int milestoneBonus = getStreakMilestoneBonus(streakCount);
+            if (milestoneBonus > 0) {
+                lobCoinService.earnLobCoin(userId, milestoneBonus, "STREAK_MILESTONE",
+                        String.format("%d일 연속 출석 마일스톤 보너스", streakCount));
+                log.info("Streak milestone bonus ({} LobCoin) given to user {} for {}d streak",
+                        milestoneBonus, userId, streakCount);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to give attendance LobCoin reward: userId={}, error={}", userId, e.getMessage());
+        }
 
         log.info("출석 체크 완료: userId={}, date={}, streak={}, points={}",
                 userId, today, streakCount, rewardPoints);
@@ -132,6 +150,20 @@ public class AttendanceService {
         LocalDate today = LocalDate.now();
         LocalDate startDate = today.minusDays(days - 1);
         return attendanceRepository.findByUserIdAndDateRange(userId, startDate, today);
+    }
+
+    /**
+     * 연속 출석 마일스톤 보너스 (정확한 마일스톤 일수에만 지급)
+     */
+    private int getStreakMilestoneBonus(int streakCount) {
+        return switch (streakCount) {
+            case 7 -> 50;     // 7일 연속: 50 LobCoin
+            case 14 -> 100;   // 14일 연속: 100 LobCoin
+            case 30 -> 200;   // 30일 연속: 200 LobCoin
+            case 60 -> 500;   // 60일 연속: 500 LobCoin
+            case 100 -> 1000; // 100일 연속: 1000 LobCoin
+            default -> 0;
+        };
     }
 
     /**

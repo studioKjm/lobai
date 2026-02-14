@@ -24,6 +24,7 @@ public class LevelService {
     private final UserRepository userRepository;
     private final AffinityScoreRepository affinityScoreRepository;
     private final NotificationService notificationService;
+    private final LevelRewardService levelRewardService;
 
     /**
      * Calculate and update user's trust level based on affinity score
@@ -59,6 +60,17 @@ public class LevelService {
             // Send notification
             notificationService.sendLevelChangeNotification(userId, currentLevel, newLevel.getLevel());
 
+            // Auto-claim level-up rewards (LobCoin + coupons)
+            if (newLevel.getLevel() > currentLevel) {
+                try {
+                    levelRewardService.claimLevelReward(userId, newLevel.getLevel());
+                    log.info("Auto-claimed level {} rewards for user {}", newLevel.getLevel(), userId);
+                } catch (Exception e) {
+                    log.warn("Failed to auto-claim level reward: userId={}, level={}, error={}",
+                            userId, newLevel.getLevel(), e.getMessage());
+                }
+            }
+
             log.info("User {} level changed: {} -> {} (Score: {}, Reason: {})",
                 userId, currentLevel, newLevel.getLevel(), score, reason);
         }
@@ -88,6 +100,15 @@ public class LevelService {
             userRepository.save(user);
 
             notificationService.sendLevelChangeNotification(userId, currentLevel, newLevel);
+
+            // Auto-claim level-up rewards for admin-adjusted levels
+            if (newLevel > currentLevel) {
+                try {
+                    levelRewardService.claimLevelReward(userId, newLevel);
+                } catch (Exception e) {
+                    log.warn("Failed to auto-claim level reward on admin adjust: {}", e.getMessage());
+                }
+            }
 
             log.info("Admin adjusted user {} level: {} -> {} (Reason: {})",
                 userId, currentLevel, newLevel, reason);

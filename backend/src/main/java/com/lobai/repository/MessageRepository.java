@@ -162,6 +162,18 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     long countByUserIdAndIdGreaterThan(Long userId, Long messageId);
 
     /**
+     * 사용자의 최근 N일간 메시지가 있는 날짜 목록 (채팅 스트릭 계산용)
+     */
+    @Query(value = "SELECT DISTINCT DATE(m.created_at) as chat_date " +
+                   "FROM messages m " +
+                   "WHERE m.user_id = :userId AND m.role = 'user' " +
+                   "AND m.created_at >= :since " +
+                   "ORDER BY chat_date DESC",
+           nativeQuery = true)
+    List<java.sql.Date> findDistinctChatDatesByUserId(@Param("userId") Long userId,
+                                                       @Param("since") LocalDateTime since);
+
+    /**
      * 사용자의 모든 메시지 삭제
      */
     void deleteByUserId(Long userId);
