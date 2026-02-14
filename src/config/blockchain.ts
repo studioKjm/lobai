@@ -9,10 +9,19 @@ export const BLOCKCHAIN_CONFIG = {
     explorerUrl: null
   },
 
-  // Polygon Mumbai Testnet
+  // Polygon Amoy Testnet (Mumbai 대체)
+  amoy: {
+    chainId: 80002,
+    chainName: 'Polygon Amoy',
+    rpcUrl: 'https://rpc-amoy.polygon.technology',
+    contractAddress: process.env.VITE_AMOY_CONTRACT_ADDRESS || '',
+    explorerUrl: 'https://amoy.polygonscan.com'
+  },
+
+  // Polygon Mumbai Testnet (Deprecated - 2024년 4월)
   mumbai: {
     chainId: 80001,
-    chainName: 'Polygon Mumbai',
+    chainName: 'Polygon Mumbai (Deprecated)',
     rpcUrl: 'https://rpc-mumbai.maticvigil.com',
     contractAddress: process.env.VITE_MUMBAI_CONTRACT_ADDRESS || '',
     explorerUrl: 'https://mumbai.polygonscan.com'

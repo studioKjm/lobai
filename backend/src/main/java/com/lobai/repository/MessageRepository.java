@@ -157,6 +157,11 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     Double getAverageUsageByUser(@Param("userId") Long userId);
 
     /**
+     * 특정 메시지 ID 이후의 메시지 수 (요약 트리거용)
+     */
+    long countByUserIdAndIdGreaterThan(Long userId, Long messageId);
+
+    /**
      * 사용자의 모든 메시지 삭제
      */
     void deleteByUserId(Long userId);

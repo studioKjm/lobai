@@ -115,10 +115,17 @@ export const useAuthStore = create<AuthState>()(
       // Check authentication status (for app initialization)
       checkAuth: async () => {
         const token = localStorage.getItem('accessToken');
+        const refreshToken = localStorage.getItem('refreshToken');
 
         if (!token) {
           set({ accessToken: null, user: null });
           return;
+        }
+
+        // Immediately restore token to state (for instant UI update)
+        const currentState = get();
+        if (!currentState.accessToken) {
+          set({ accessToken: token });
         }
 
         try {
@@ -131,7 +138,7 @@ export const useAuthStore = create<AuthState>()(
             user
           });
         } catch (error) {
-          // Token is invalid, clear everything
+          // Token is invalid or expired, clear everything
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           set({ accessToken: null, user: null });
@@ -140,6 +147,33 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      storage: {
+        getItem: (name) => {
+          // Always sync with localStorage on load
+          const token = localStorage.getItem('accessToken');
+          const refreshToken = localStorage.getItem('refreshToken');
+
+          if (token) {
+            // If localStorage has token, use it
+            return JSON.stringify({
+              state: {
+                accessToken: token,
+                user: null // Will be loaded by checkAuth
+              }
+            });
+          }
+
+          // Otherwise, use persisted zustand state
+          const str = localStorage.getItem(name);
+          return str ? str : null;
+        },
+        setItem: (name, value) => {
+          localStorage.setItem(name, value);
+        },
+        removeItem: (name) => {
+          localStorage.removeItem(name);
+        }
+      },
       partialize: (state) => ({
         // Persist both accessToken and user for HMR stability
         accessToken: state.accessToken,

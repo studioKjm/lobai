@@ -7,6 +7,7 @@ import com.lobai.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Order(2) // DataInitializer 다음에 실행
 public class HipInitializationService implements CommandLineRunner {
 
     private final UserRepository userRepository;

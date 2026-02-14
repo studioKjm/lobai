@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * SendMessageRequest
@@ -12,6 +13,7 @@ import lombok.NoArgsConstructor;
  * 메시지 전송 요청 DTO
  */
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class SendMessageRequest {

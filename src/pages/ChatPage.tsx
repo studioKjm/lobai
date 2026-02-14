@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from '@/components/common/Navbar';
 import { StatsPanel } from '@/components/chat/StatsPanel';
 import { ActionButtons } from '@/components/chat/ActionButtons';
-import { PersonaSelector } from '@/components/chat/PersonaSelector';
+import { SidebarSchedule } from '@/components/schedule/SidebarSchedule';
 import { SplineCharacter } from '@/components/chat/SplineCharacter';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { SleepOverlay } from '@/components/chat/SleepOverlay';
 import { PlayOverlay } from '@/components/chat/PlayOverlay';
-import { AffinityScoreCard } from '@/components/affinity/AffinityScoreCard';
 import { AttendanceCard } from '@/components/attendance/AttendanceCard';
-import { ResilienceReportCard } from '@/components/resilience/ResilienceReportCard';
+import { ChatDashboardSection } from '@/components/dashboard/ChatDashboardSection';
+import { LobCoinBalance } from '@/components/chat/LobCoinBalance';
 import { useSplineLoader } from '@/hooks/useSplineLoader';
 import { useChatStore } from '@/stores/chatStore';
 import type { ActionType } from '@/types';
@@ -20,11 +20,13 @@ export const ChatPage: React.FC = () => {
     stats,
     messages,
     isTyping,
+    isStreaming,
     loadStats,
     loadMessages,
     loadPersonas,
     updateStats,
     sendMessage,
+    sendMessageStream,
     sleepTick,
     clearMessageHistory
   } = useChatStore();
@@ -34,6 +36,7 @@ export const ChatPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReacting, setIsReacting] = useState(false);
   const [playButtonPulse, setPlayButtonPulse] = useState(false);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
   const sleepTickIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const playTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -200,13 +203,19 @@ export const ChatPage: React.FC = () => {
     }
   };
 
-  // Handle message send
+  // Handle message send (streaming with fallback)
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isTyping) return;
+    if (!inputValue.trim() || isTyping || isStreaming) return;
 
     const content = inputValue;
     setInputValue('');
-    await sendMessage(content);
+
+    try {
+      await sendMessageStream(content);
+    } catch {
+      // Fallback to non-streaming
+      await sendMessage(content);
+    }
   };
 
   return (
@@ -229,7 +238,7 @@ export const ChatPage: React.FC = () => {
               onWake={handleWake}
               playButtonPulse={playButtonPulse}
             />
-            <PersonaSelector />
+            <SidebarSchedule />
           </div>
 
           {/* Center: 3D Character with Overlays */}
@@ -247,33 +256,36 @@ export const ChatPage: React.FC = () => {
             <PlayOverlay isPlaying={isPlaying} />
           </div>
 
-          {/* Right: Chat */}
-          <ChatInterface
-            messages={messages}
-            inputValue={inputValue}
-            isTyping={isTyping}
-            onInputChange={setInputValue}
-            onSendMessage={handleSendMessage}
-            onClearHistory={clearMessageHistory}
-          />
+          {/* Right: Chat with LobCoin */}
+          <div className="w-full lg:w-1/3 flex flex-col gap-3 order-3">
+            {/* LobCoin Balance - Above Chat */}
+            <LobCoinBalance />
+
+            {/* Chat Interface */}
+            <ChatInterface
+              messages={messages}
+              inputValue={inputValue}
+              isTyping={isTyping}
+              onInputChange={setInputValue}
+              onSendMessage={handleSendMessage}
+              onClearHistory={clearMessageHistory}
+              isExpanded={isChatExpanded}
+              onToggleExpand={() => setIsChatExpanded(!isChatExpanded)}
+            />
+          </div>
         </div>
 
-        {/* Phase 2: Attendance & Resilience Section */}
+        {/* Dashboard Section */}
         <div className="relative w-full max-w-6xl mt-12">
+          <ChatDashboardSection />
+        </div>
+
+        {/* Attendance Card */}
+        <div className="relative w-full max-w-6xl mt-8">
           <div className="grid lg:grid-cols-2 gap-8 mb-8">
             <AttendanceCard />
             <div className="lg:col-span-1" />
           </div>
-        </div>
-
-        {/* Affinity Score Section */}
-        <div className="relative w-full max-w-6xl mt-8">
-          <AffinityScoreCard />
-        </div>
-
-        {/* AI Resilience Report Section */}
-        <div className="relative w-full max-w-6xl mt-8">
-          <ResilienceReportCard />
         </div>
       </section>
     </div>

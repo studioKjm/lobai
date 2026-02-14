@@ -144,6 +144,20 @@ export function BlockchainSection({ profile, className = '' }: BlockchainSection
       return;
     }
 
+    // 이미 등록된 계정인지 확인
+    const existingHipId = await getHipIdByAddress(account, network);
+    if (existingHipId && existingHipId !== '') {
+      if (existingHipId === profile.hipId) {
+        toast.error('이 계정은 이미 현재 HIP ID로 등록되어 있습니다');
+      } else {
+        toast.error(
+          `이 계정은 이미 다른 신원(${existingHipId})으로 등록되어 있습니다.\n한 계정당 하나의 신원만 등록 가능합니다.`,
+          { duration: 6000 }
+        );
+      }
+      return;
+    }
+
     setIsLoading(true);
     const loadingToast = toast.loading('블록체인에 신원을 등록하는 중...');
 
@@ -167,7 +181,23 @@ export function BlockchainSection({ profile, className = '' }: BlockchainSection
       }, 1000);
     } catch (error: any) {
       console.error('Failed to register on blockchain:', error);
-      toast.error(error.message || '블록체인 등록에 실패했습니다', { id: loadingToast });
+
+      // Smart Contract에서 반환한 에러 메시지 파싱
+      let errorMessage = '블록체인 등록에 실패했습니다';
+
+      if (error.message) {
+        if (error.message.includes('Address already has a registered identity')) {
+          errorMessage = '이 계정은 이미 다른 신원으로 등록되어 있습니다. 한 계정당 하나의 신원만 등록 가능합니다.';
+        } else if (error.message.includes('HIP ID already registered')) {
+          errorMessage = '이 HIP ID는 이미 등록되어 있습니다.';
+        } else if (error.message.includes('user rejected')) {
+          errorMessage = '트랜잭션이 취소되었습니다.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      toast.error(errorMessage, { id: loadingToast, duration: 5000 });
     } finally {
       setIsLoading(false);
     }
@@ -226,7 +256,7 @@ export function BlockchainSection({ profile, className = '' }: BlockchainSection
           네트워크 선택
         </label>
         <div className="flex gap-2">
-          {(['localhost', 'mumbai'] as NetworkName[]).map((net) => (
+          {(['localhost', 'amoy'] as NetworkName[]).map((net) => (
             <button
               key={net}
               onClick={() => handleSwitchNetwork(net)}
@@ -342,39 +372,65 @@ export function BlockchainSection({ profile, className = '' }: BlockchainSection
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
-          <div className="text-center mb-6">
-            <div className="text-5xl mb-4">🚀</div>
-            <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-              블록체인에 신원 등록
-            </h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              당신의 HIP 신원을 불변의 블록체인에 기록하세요.
-            </p>
-          </div>
+          {blockchainIdentity && blockchainIdentity.hipId !== profile.hipId ? (
+            // 다른 HIP ID로 등록된 경우
+            <div className="text-center">
+              <div className="text-5xl mb-4">⚠️</div>
+              <h4 className="text-lg font-bold text-yellow-600 dark:text-yellow-400 mb-2">
+                다른 신원으로 등록됨
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                이 계정은 이미 다른 HIP ID로 블록체인에 등록되어 있습니다.
+              </p>
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg mb-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">등록된 HIP ID</p>
+                <p className="font-mono text-sm font-semibold text-yellow-700 dark:text-yellow-300">
+                  {blockchainIdentity.hipId}
+                </p>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-500">
+                ℹ️ 한 계정당 하나의 신원만 등록할 수 있습니다.<br />
+                현재 신원({profile.hipId})을 등록하려면 다른 계정을 사용하세요.
+              </p>
+            </div>
+          ) : (
+            // 미등록 상태
+            <>
+              <div className="text-center mb-6">
+                <div className="text-5xl mb-4">🚀</div>
+                <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                  블록체인에 신원 등록
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  당신의 HIP 신원을 불변의 블록체인에 기록하세요.
+                </p>
+              </div>
 
-          <button
-            onClick={handleRegisterOnBlockchain}
-            disabled={!account || isLoading}
-            className={`w-full px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold text-lg shadow-lg transition-all ${
-              !account || isLoading
-                ? 'opacity-50 cursor-not-allowed'
-                : 'hover:shadow-xl hover:scale-105'
-            }`}
-          >
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                등록 중...
-              </span>
-            ) : (
-              '⛓️ 블록체인에 등록하기'
-            )}
-          </button>
+              <button
+                onClick={handleRegisterOnBlockchain}
+                disabled={!account || isLoading}
+                className={`w-full px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold text-lg shadow-lg transition-all ${
+                  !account || isLoading
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:shadow-xl hover:scale-105'
+                }`}
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                    등록 중...
+                  </span>
+                ) : (
+                  '⛓️ 블록체인에 등록하기'
+                )}
+              </button>
 
-          {!account && (
-            <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-500">
-              먼저 지갑을 연결해주세요
-            </p>
+              {!account && (
+                <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-500">
+                  먼저 지갑을 연결해주세요
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

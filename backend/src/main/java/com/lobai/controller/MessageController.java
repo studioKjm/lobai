@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -40,6 +41,31 @@ public class MessageController {
         log.info("Send message request from user {}: content length={}", userId, request.getContent().length());
 
         ChatResponse response = messageService.sendMessage(userId, request);
+
+        return ResponseEntity
+                .ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 파일 첨부와 함께 메시지 전송
+     *
+     * POST /api/messages/with-file
+     */
+    @PostMapping("/with-file")
+    public ResponseEntity<ApiResponse<ChatResponse>> sendMessageWithFile(
+            @RequestParam("content") String content,
+            @RequestParam(value = "personaId", required = false) Long personaId,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+
+        Long userId = SecurityUtil.getCurrentUserId();
+        log.info("Send message with file request from user {}: content length={}, file={}",
+                userId, content.length(), file != null ? file.getOriginalFilename() : "none");
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setContent(content);
+        request.setPersonaId(personaId);
+
+        ChatResponse response = messageService.sendMessageWithFile(userId, request, file);
 
         return ResponseEntity
                 .ok(ApiResponse.success(response));

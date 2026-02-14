@@ -1,5 +1,6 @@
 package com.lobai.service;
 
+import com.lobai.dto.request.AdjustLevelRequest;
 import com.lobai.dto.request.ChangeRoleRequest;
 import com.lobai.dto.request.ChangeStatusRequest;
 import com.lobai.dto.request.UpdateUserRequest;
@@ -35,6 +36,7 @@ public class UserAdminService {
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
     private final AffinityScoreRepository affinityScoreRepository;
+    private final LevelRewardService levelRewardService;
 
     /**
      * 사용자 목록 조회 (페이징, 필터링, 검색)
@@ -220,6 +222,59 @@ public class UserAdminService {
         User savedUser = userRepository.save(user);
 
         log.info("User status changed: {} -> {}", user.getEmail(), request.getStatus());
+
+        return toUserResponse(savedUser);
+    }
+
+    /**
+     * 사용자 레벨(행복도) 조정
+     *
+     * @param id      사용자 ID
+     * @param request 레벨 조정 요청
+     * @return 변경된 사용자 정보
+     */
+    @Transactional
+    public UserResponse adjustUserLevel(Long id, AdjustLevelRequest request) {
+        // Validation
+        if (request.getLevel() < 0 || request.getLevel() > 100) {
+            throw new IllegalArgumentException("레벨은 0-100 범위여야 합니다");
+        }
+
+        // Get user
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + id));
+
+        // 본인의 레벨은 변경할 수 없음
+        Long currentUserId = SecurityUtil.getCurrentUserId();
+        if (currentUserId.equals(id)) {
+            throw new IllegalStateException("자신의 레벨을 변경할 수 없습니다");
+        }
+
+        // Track level change for rewards
+        int previousHappiness = user.getCurrentHappiness();
+        int previousLevel = Math.max(1, Math.min(10, (previousHappiness / 10) + 1));
+        int newLevel = Math.max(1, Math.min(10, (request.getLevel() / 10) + 1));
+
+        // Update happiness (level)
+        user.updateStats(null, null, request.getLevel());
+        User savedUser = userRepository.save(user);
+
+        // Give level-up rewards if level increased
+        if (newLevel > previousLevel) {
+            for (int level = previousLevel + 1; level <= newLevel; level++) {
+                try {
+                    levelRewardService.claimLevelReward(id, level);
+                    log.info("Level {} rewards claimed for user {} (admin adjusted)",
+                             level, id);
+                } catch (Exception e) {
+                    log.warn("Failed to claim level {} rewards for user {}: {}",
+                             level, id, e.getMessage());
+                }
+            }
+        }
+
+        log.info("User level adjusted: {} -> {} (reason: {})",
+                user.getEmail(), request.getLevel(), request.getReason());
 
         return toUserResponse(savedUser);
     }

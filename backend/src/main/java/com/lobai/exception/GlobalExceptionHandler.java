@@ -68,6 +68,32 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * IllegalStateException 처리 (인증 관련 상태 에러)
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(IllegalStateException ex) {
+        String message = ex.getMessage();
+
+        // Authentication-related errors should return 401
+        if (message != null && (
+            message.contains("인증되지 않은") ||
+            message.contains("인증 정보") ||
+            message.contains("사용자 ID")
+        )) {
+            log.warn("Authentication state error: {}", message);
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(message, "AUTHENTICATION_ERROR"));
+        }
+
+        // Other state errors are business logic errors (400)
+        log.warn("State error: {}", message);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(message, "STATE_ERROR"));
+    }
+
+    /**
      * 기타 모든 예외 처리
      */
     @ExceptionHandler(Exception.class)

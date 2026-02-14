@@ -9,6 +9,11 @@ export interface Stats {
 export interface Message {
   role: 'user' | 'bot';
   content: string;
+  attachmentUrl?: string;
+  attachmentType?: string;
+  attachmentName?: string;
+  llmProvider?: string;
+  llmModel?: string;
 }
 
 export interface Persona {
@@ -113,4 +118,28 @@ export interface PersonaUsageStat {
 
 export interface PersonaStats {
   personaUsage: PersonaUsageStat[];
+}
+
+// Schedule Types
+export interface ScheduleEvent {
+  id: number;
+  title: string;
+  description?: string;
+  startTime: string;  // ISO 8601
+  endTime: string;
+  type: 'REMINDER' | 'INTERACTION' | 'EVENT';
+  isCompleted: boolean;
+  timezone: string;
+  notifyBeforeMinutes?: number;
+  createdAt: string;
+}
+
+export interface CreateScheduleRequest {
+  title: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+  type: 'REMINDER' | 'INTERACTION' | 'EVENT';
+  timezone?: string;
+  notifyBeforeMinutes?: number;
 }

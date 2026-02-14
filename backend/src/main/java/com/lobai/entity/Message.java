@@ -61,6 +61,26 @@ public class Message {
     @Builder.Default
     private Boolean isAnalyzed = false;  // 점수 분석 완료 여부
 
+    // 파일 첨부 필드
+    @Column(name = "attachment_url", length = 500)
+    private String attachmentUrl;  // 첨부 파일 URL (로컬 경로 또는 클라우드 URL)
+
+    @Column(name = "attachment_type", length = 50)
+    private String attachmentType;  // 파일 MIME 타입 (image/jpeg, application/pdf 등)
+
+    @Column(name = "attachment_name", length = 255)
+    private String attachmentName;  // 원본 파일명
+
+    // LLM 메타데이터 필드
+    @Column(name = "llm_provider", length = 50)
+    private String llmProvider;
+
+    @Column(name = "llm_model", length = 100)
+    private String llmModel;
+
+    @Column(name = "token_count")
+    private Integer tokenCount;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

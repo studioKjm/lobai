@@ -8,6 +8,9 @@ import com.lobai.entity.Message;
 import com.lobai.entity.Persona;
 import com.lobai.entity.User;
 import com.lobai.entity.UserStatsHistory;
+import com.lobai.llm.*;
+import com.lobai.llm.prompt.PersonaPromptTemplate;
+import com.lobai.llm.prompt.PromptContext;
 import com.lobai.repository.MessageRepository;
 import com.lobai.repository.PersonaRepository;
 import com.lobai.repository.UserRepository;
@@ -18,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +31,7 @@ import java.util.stream.Collectors;
  * MessageService
  *
  * 메시지 및 채팅 관련 비즈니스 로직
+ * → ContextAssemblyService + LlmRouter + PromptTemplate 통합
  */
 @Slf4j
 @Service
@@ -39,13 +44,16 @@ public class MessageService {
     private final UserStatsHistoryRepository userStatsHistoryRepository;
     private final GeminiService geminiService;
     private final AffinityScoreService affinityScoreService;
+    private final FileStorageService fileStorageService;
+    private final LobCoinService lobCoinService;
+    private final ContextAssemblyService contextAssemblyService;
+    private final ConversationSummaryService conversationSummaryService;
+    private final PersonaPromptTemplate personaPromptTemplate;
+    private final LlmRouter llmRouter;
+    private final LlmUsageService llmUsageService;
 
     /**
      * 메시지 전송 및 AI 응답 생성
-     *
-     * @param userId 사용자 ID
-     * @param request 메시지 요청
-     * @return 채팅 응답 (사용자 메시지 + AI 응답 + Stats 업데이트)
      */
     @Transactional
     public ChatResponse sendMessage(Long userId, SendMessageRequest request) {
@@ -53,34 +61,17 @@ public class MessageService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
 
-        // 2. 페르소나 결정 (요청에 포함되지 않은 경우 사용자의 현재 페르소나 사용)
-        Persona persona;
-        if (request.getPersonaId() != null) {
-            persona = personaRepository.findById(request.getPersonaId())
-                    .orElseThrow(() -> new IllegalArgumentException("페르소나를 찾을 수 없습니다: " + request.getPersonaId()));
-        } else {
-            persona = user.getCurrentPersona();
-            if (persona == null) {
-                // 기본 페르소나 (친구모드) 사용
-                persona = personaRepository.findByNameEn("friend")
-                        .orElseThrow(() -> new IllegalStateException("기본 페르소나를 찾을 수 없습니다"));
-                user.changePersona(persona);
-                userRepository.save(user);
-            }
+        // 2. 페르소나 결정
+        Persona persona = resolvePersona(user, request.getPersonaId());
+
+        // 2-1. 일일 토큰 제한 확인
+        if (llmUsageService.isOverDailyLimit(userId)) {
+            throw new IllegalStateException("일일 AI 사용량 제한을 초과했습니다. 내일 다시 이용해 주세요.");
         }
 
-        // 3. 최근 대화 히스토리 조회 (최근 6개 = 3번의 대화 왕복)
-        // gemini-2.5-flash 모델의 503 에러 방지를 위해 히스토리 제한
-        Pageable historyPageable = PageRequest.of(0, 6);
-        List<Message> recentHistory = messageRepository
-                .findByUserIdOrderByCreatedAtDesc(userId, historyPageable)
-                .getContent();
-
-        // 역순으로 변환 (오래된 것부터 최신 것 순으로)
-        List<Message> conversationHistory = new ArrayList<>();
-        for (int i = recentHistory.size() - 1; i >= 0; i--) {
-            conversationHistory.add(recentHistory.get(i));
-        }
+        // 3. 3계층 컨텍스트 조립 (기존 6개 고정 → 동적 토큰 예산)
+        ContextAssemblyService.AssembledContext context =
+                contextAssemblyService.assembleContext(userId, persona, 6000);
 
         // 4. 사용자 메시지 저장
         Message userMessage = Message.builder()
@@ -91,7 +82,7 @@ public class MessageService {
                 .build();
         userMessage = messageRepository.save(userMessage);
 
-        // 4-1. 친밀도 점수 분석 (비동기 권장, 현재는 동기)
+        // 4-1. 친밀도 점수 분석
         try {
             affinityScoreService.analyzeAndUpdateScore(userMessage);
         } catch (Exception e) {
@@ -99,27 +90,74 @@ public class MessageService {
                     userId, e.getMessage());
         }
 
-        // 5. Gemini API 호출하여 AI 응답 생성 (대화 히스토리 포함)
-        String aiResponseText = geminiService.generateResponse(
-                request.getContent(),
-                conversationHistory,
-                persona,
-                user.getCurrentHunger(),
-                user.getCurrentEnergy(),
-                user.getCurrentHappiness()
-        );
+        // 4-2. 일일 첫 체크인 보상
+        try {
+            checkAndRewardDailyCheckIn(userId);
+        } catch (Exception e) {
+            log.warn("Daily check-in reward failed, continuing: userId={}, error={}",
+                    userId, e.getMessage());
+        }
 
-        // 6. AI 응답 저장
+        // 5. 프롬프트 생성 + LLM 호출
+        LlmProvider provider = llmRouter.resolve(LlmTaskType.CHAT_CONVERSATION);
+
+        PromptContext promptContext = PromptContext.builder()
+                .persona(persona)
+                .user(user)
+                .hunger(user.getCurrentHunger())
+                .energy(user.getCurrentEnergy())
+                .happiness(user.getCurrentHappiness())
+                .userProfileBlock(context.getUserProfileBlock())
+                .conversationSummaryBlock(context.getConversationSummaryBlock())
+                .providerName(provider.getProviderName())
+                .build();
+
+        String systemInstruction = personaPromptTemplate.render(promptContext);
+
+        LlmRequest llmRequest = LlmRequest.builder()
+                .systemInstruction(systemInstruction)
+                .conversationHistory(context.getRecentMessages())
+                .userMessage(request.getContent())
+                .tools(geminiService.buildFunctionDeclarations())
+                .taskType(LlmTaskType.CHAT_CONVERSATION)
+                .build();
+
+        long startTime = System.currentTimeMillis();
+        LlmResponse llmResponse = llmRouter.executeWithFallback(LlmTaskType.CHAT_CONVERSATION, llmRequest);
+        int responseTimeMs = (int) (System.currentTimeMillis() - startTime);
+
+        // 사용량 로깅 (비동기)
+        llmUsageService.logUsage(userId, llmResponse, LlmTaskType.CHAT_CONVERSATION, responseTimeMs, false);
+
+        String aiResponseText = llmResponse.getContent() != null ? llmResponse.getContent()
+                : "죄송해요, 지금 제 머리가 좀 복잡해서 답변이 어려워요.";
+
+        // Function Call 처리 (기존 로직 위임)
+        if (llmResponse.hasFunctionCall()) {
+            aiResponseText = geminiService.generateResponse(
+                    request.getContent(),
+                    new ArrayList<>(), // FC는 기존 로직으로 처리
+                    persona,
+                    user.getCurrentHunger(),
+                    user.getCurrentEnergy(),
+                    user.getCurrentHappiness(),
+                    null, null);
+        }
+
+        // 6. AI 응답 저장 (LLM 메타데이터 포함)
         Message botMessage = Message.builder()
                 .user(user)
                 .persona(persona)
                 .role(Message.MessageRole.bot)
                 .content(aiResponseText)
+                .llmProvider(llmResponse.getProviderName())
+                .llmModel(llmResponse.getModelUsed())
+                .tokenCount(llmResponse.getUsage() != null ? llmResponse.getUsage().getTotalTokens() : null)
                 .build();
         botMessage = messageRepository.save(botMessage);
 
-        // 7. Stats 업데이트 (대화 시 행복도 소폭 증가)
-        Integer newHappiness = user.getCurrentHappiness() + 2;  // 대화 1회당 +2
+        // 7. Stats 업데이트
+        Integer newHappiness = user.getCurrentHappiness() + 2;
         user.updateStats(null, null, newHappiness);
         userRepository.save(user);
 
@@ -133,15 +171,34 @@ public class MessageService {
                 .build();
         userStatsHistoryRepository.save(history);
 
-        log.info("Chat completed for user {}: persona={}, history={} msgs, happiness {} -> {}",
-                userId, persona.getNameEn(), conversationHistory.size(), newHappiness - 2, newHappiness);
+        // 9. 비동기 요약 트리거
+        conversationSummaryService.summarizeIfNeeded(user, persona);
 
-        // 9. 응답 생성
+        log.info("Chat completed for user {}: persona={}, context={} msgs, provider={}, happiness {} -> {}",
+                userId, persona.getNameEn(), context.getRecentMessages().size(),
+                llmResponse.getProviderName(), newHappiness - 2, newHappiness);
+
+        // 10. 응답 생성
         return ChatResponse.builder()
                 .userMessage(MessageResponse.from(userMessage))
                 .botMessage(MessageResponse.from(botMessage))
                 .statsUpdate(StatsResponse.from(user))
                 .build();
+    }
+
+    private Persona resolvePersona(User user, Long personaId) {
+        if (personaId != null) {
+            return personaRepository.findById(personaId)
+                    .orElseThrow(() -> new IllegalArgumentException("페르소나를 찾을 수 없습니다: " + personaId));
+        }
+        Persona persona = user.getCurrentPersona();
+        if (persona == null) {
+            persona = personaRepository.findByNameEn("friend")
+                    .orElseThrow(() -> new IllegalStateException("기본 페르소나를 찾을 수 없습니다"));
+            user.changePersona(persona);
+            userRepository.save(user);
+        }
+        return persona;
     }
 
     /**
@@ -191,6 +248,106 @@ public class MessageService {
     }
 
     /**
+     * 파일 첨부와 함께 메시지 전송
+     */
+    @Transactional
+    public ChatResponse sendMessageWithFile(Long userId, SendMessageRequest request, MultipartFile file) {
+        // 1. 사용자 조회
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+
+        // 2. 페르소나 결정
+        Persona persona = resolvePersona(user, request.getPersonaId());
+
+        // 3. 파일 저장
+        String attachmentUrl = null;
+        String attachmentType = null;
+        String attachmentName = null;
+
+        if (file != null && !file.isEmpty()) {
+            try {
+                attachmentUrl = fileStorageService.saveFile(file, userId);
+                attachmentType = file.getContentType();
+                attachmentName = file.getOriginalFilename();
+                log.info("File uploaded: {} (type: {}, size: {})", attachmentName, attachmentType, file.getSize());
+            } catch (Exception e) {
+                log.error("Failed to upload file", e);
+                throw new RuntimeException("파일 업로드에 실패했습니다: " + e.getMessage());
+            }
+        }
+
+        // 4. 3계층 컨텍스트 조립
+        ContextAssemblyService.AssembledContext context =
+                contextAssemblyService.assembleContext(userId, persona, 6000);
+
+        // 5. 사용자 메시지 저장 (파일 정보 포함)
+        Message userMessage = Message.builder()
+                .user(user)
+                .persona(persona)
+                .role(Message.MessageRole.user)
+                .content(request.getContent())
+                .attachmentUrl(attachmentUrl)
+                .attachmentType(attachmentType)
+                .attachmentName(attachmentName)
+                .build();
+        userMessage = messageRepository.save(userMessage);
+
+        // 5-1. 친밀도 점수 분석
+        try {
+            affinityScoreService.analyzeAndUpdateScore(userMessage);
+        } catch (Exception e) {
+            log.warn("Affinity score analysis failed: {}", e.getMessage());
+        }
+
+        // 6. AI 응답 생성 (파일 첨부는 기존 GeminiService 경유)
+        String aiResponseText = geminiService.generateResponse(
+                request.getContent(),
+                new ArrayList<>(), // 컨텍스트는 이미 시스템 프롬프트에 포함
+                persona,
+                user.getCurrentHunger(),
+                user.getCurrentEnergy(),
+                user.getCurrentHappiness(),
+                attachmentUrl,
+                attachmentType
+        );
+
+        // 7. AI 응답 저장
+        Message botMessage = Message.builder()
+                .user(user)
+                .persona(persona)
+                .role(Message.MessageRole.bot)
+                .content(aiResponseText)
+                .build();
+        botMessage = messageRepository.save(botMessage);
+
+        // 8. Stats 업데이트
+        Integer newHappiness = user.getCurrentHappiness() + 2;
+        user.updateStats(null, null, newHappiness);
+        userRepository.save(user);
+
+        // 9. Stats 히스토리 기록
+        UserStatsHistory history = UserStatsHistory.builder()
+                .user(user)
+                .hunger(user.getCurrentHunger())
+                .energy(user.getCurrentEnergy())
+                .happiness(user.getCurrentHappiness())
+                .actionType(UserStatsHistory.ActionType.chat)
+                .build();
+        userStatsHistoryRepository.save(history);
+
+        // 10. 비동기 요약 트리거
+        conversationSummaryService.summarizeIfNeeded(user, persona);
+
+        log.info("Chat with file completed for user {}: file={}", userId, attachmentName);
+
+        return ChatResponse.builder()
+                .userMessage(MessageResponse.from(userMessage))
+                .botMessage(MessageResponse.from(botMessage))
+                .statsUpdate(StatsResponse.from(user))
+                .build();
+    }
+
+    /**
      * 사용자의 대화 히스토리 전체 삭제
      *
      * @param userId 사용자 ID
@@ -203,5 +360,37 @@ public class MessageService {
 
         messageRepository.deleteByUserId(userId);
         log.info("Message history cleared for user {}", userId);
+    }
+
+    /**
+     * 일일 첫 체크인 확인 및 보상 지급
+     *
+     * @param userId 사용자 ID
+     */
+    private void checkAndRewardDailyCheckIn(Long userId) {
+        // 오늘 날짜 범위 계산
+        java.time.LocalDate today = java.time.LocalDate.now();
+        java.time.LocalDateTime startOfDay = today.atStartOfDay();
+        java.time.LocalDateTime endOfDay = today.plusDays(1).atStartOfDay();
+
+        // 오늘 작성한 사용자 메시지가 있는지 확인 (현재 메시지 제외, 이전 메시지만)
+        List<Message> todayMessages = messageRepository.findByUserIdAndDateRange(
+                userId, startOfDay, endOfDay);
+
+        // 사용자가 작성한 메시지만 카운트 (role = user)
+        long todayUserMessageCount = todayMessages.stream()
+                .filter(m -> m.getRole() == Message.MessageRole.user)
+                .count();
+
+        // 첫 메시지인 경우 (현재 메시지 포함해서 1개)
+        if (todayUserMessageCount == 1) {
+            lobCoinService.earnLobCoin(
+                    userId,
+                    10,
+                    "DAILY_CHECK_IN",
+                    String.format("일일 첫 체크인 (%s)", today)
+            );
+            log.info("Daily check-in reward (10 LobCoin) given to user {}", userId);
+        }
     }
 }

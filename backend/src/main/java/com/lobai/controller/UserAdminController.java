@@ -1,5 +1,6 @@
 package com.lobai.controller;
 
+import com.lobai.dto.request.AdjustLevelRequest;
 import com.lobai.dto.request.ChangeRoleRequest;
 import com.lobai.dto.request.ChangeStatusRequest;
 import com.lobai.dto.request.UpdateUserRequest;
@@ -128,5 +129,22 @@ public class UserAdminController {
         UserResponse user = userAdminService.changeUserStatus(id, request);
 
         return ResponseEntity.ok(ApiResponse.success("사용자 상태 변경 성공", user));
+    }
+
+    /**
+     * 사용자 레벨(행복도) 조정
+     *
+     * PATCH /api/admin/users/{id}/level
+     */
+    @PatchMapping("/{id}/level")
+    public ResponseEntity<ApiResponse<UserResponse>> adjustUserLevel(
+            @PathVariable Long id,
+            @Valid @RequestBody AdjustLevelRequest request
+    ) {
+        log.info("Adjust user level request - id: {}, level: {}", id, request.getLevel());
+
+        UserResponse user = userAdminService.adjustUserLevel(id, request);
+
+        return ResponseEntity.ok(ApiResponse.success("사용자 레벨 조정 성공", user));
     }
 }

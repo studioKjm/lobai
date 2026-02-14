@@ -6,8 +6,24 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
-        port: 5173,
+        port: 5175,
         host: '0.0.0.0',
+        hmr: {
+          overlay: true,
+        },
+        watch: {
+          // Exclude node_modules, dist, and other heavy directories
+          ignored: [
+            '**/node_modules/**',
+            '**/dist/**',
+            '**/build/**',
+            '**/.git/**',
+            '**/backend/**',
+            '**/docs/**',
+            '**/*.log',
+          ],
+          usePolling: false, // Disable polling for better performance
+        },
       },
       plugins: [react()],
       define: {
@@ -18,6 +34,18 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, './src'),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+              'ui-vendor': ['@headlessui/react', 'react-hot-toast'],
+              'calendar-vendor': ['@fullcalendar/react', '@fullcalendar/daygrid', '@fullcalendar/timegrid', '@fullcalendar/interaction'],
+            }
+          }
+        },
+        chunkSizeWarningLimit: 1000,
       }
     };
 });

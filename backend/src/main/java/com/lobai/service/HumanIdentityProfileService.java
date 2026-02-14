@@ -36,6 +36,7 @@ public class HumanIdentityProfileService {
     private final MessageRepository messageRepository;
     private final AffinityScoreRepository affinityScoreRepository;
     private final GeminiService geminiService;
+    private final LobCoinService lobCoinService;
 
     /**
      * 사용자의 HIP 초기 생성
@@ -211,6 +212,29 @@ public class HumanIdentityProfileService {
 
         log.info("Reanalyzed HIP: {} - Score: {} -> {} (method: {})",
             hip.getHipId(), previousScore, hip.getOverallHipScore(), analysisMethod);
+
+        // 10. 고품질 리포트 보상 (Overall HIP Score >= 90)
+        BigDecimal currentScore = hip.getOverallHipScore();
+        BigDecimal threshold = BigDecimal.valueOf(90.0);
+
+        // 이전 점수가 90 미만이었고, 새 점수가 90 이상인 경우에만 보상 지급
+        boolean wasBelow90 = previousScore == null || previousScore.compareTo(threshold) < 0;
+        boolean isNow90Plus = currentScore.compareTo(threshold) >= 0;
+
+        if (wasBelow90 && isNow90Plus) {
+            try {
+                lobCoinService.earnLobCoin(
+                    userId,
+                    30,
+                    "QUALITY_REPORT",
+                    String.format("고품질 HIP 리포트 달성 (점수: %.1f)", currentScore)
+                );
+                log.info("Quality report reward (30 LobCoin) given to user {} for HIP score {}",
+                         userId, currentScore);
+            } catch (Exception e) {
+                log.warn("Failed to give quality report reward: {}", e.getMessage());
+            }
+        }
 
         return updatedHip;
     }

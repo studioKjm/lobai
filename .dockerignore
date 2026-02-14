@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Backend
+backend/
+
+# Env files
+.env
+.env.local
+.env.docker
+
+# Logs
+*.log
+npm-debug.log*
+
+# Misc
+.DS_Store
+coverage/

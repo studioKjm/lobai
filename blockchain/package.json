@@ -10,10 +10,13 @@
     "compile": "hardhat compile",
     "node": "hardhat node",
     "deploy:localhost": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
     "deploy:mumbai": "hardhat run scripts/deploy.js --network mumbai",
     "deploy:polygon": "hardhat run scripts/deploy.js --network polygon",
     "interact:localhost": "hardhat run scripts/interact.js --network localhost",
+    "interact:amoy": "hardhat run scripts/interact.js --network amoy",
     "interact:mumbai": "hardhat run scripts/interact.js --network mumbai",
+    "verify:amoy": "hardhat verify --network amoy",
     "verify:mumbai": "hardhat verify --network mumbai",
     "clean": "hardhat clean && rm -rf cache artifacts"
   },

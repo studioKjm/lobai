@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: lobai-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - lobai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Spring Boot Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lobai-backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # Database
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+      # API Keys
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: docker
+
+      # JVM Memory Settings
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - backend-uploads:/app/uploads
+    networks:
+      - lobai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 768M
+        reservations:
+          cpus: '0.5'
+          memory: 384M
+
+  # Vite + React Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: lobai-frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:${BACKEND_PORT:-8080}/api
+    ports:
+      - "${FRONTEND_PORT:-5175}:5175"
+    volumes:
+      # Hot reload - mount source files
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+      - ./index.html:/app/index.html:ro
+      - ./vite.config.ts:/app/vite.config.ts:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./tsconfig.node.json:/app/tsconfig.node.json:ro
+      - ./tailwind.config.js:/app/tailwind.config.js:ro
+      - ./postcss.config.js:/app/postcss.config.js:ro
+      # Prevent overwriting node_modules
+      - /app/node_modules
+    networks:
+      - lobai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+networks:
+  lobai-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+    name: lobai-mysql-data
+  backend-uploads:
+    name: lobai-backend-uploads

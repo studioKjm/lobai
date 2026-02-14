@@ -7,6 +7,11 @@ import { AdminPage } from '@/pages/AdminPage';
 import HIPDashboard from '@/pages/HIPDashboard';
 import RankingPage from '@/pages/RankingPage';
 import PublicProfilePage from '@/pages/PublicProfilePage';
+import { AffinityAnalysisPage } from '@/pages/AffinityAnalysisPage';
+import { ResilienceAnalysisPage } from '@/pages/ResilienceAnalysisPage';
+import { TrainingPage } from '@/pages/TrainingPage';
+import { AboutPage } from '@/pages/AboutPage';
+import { PricingPage } from '@/pages/PricingPage';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -16,6 +21,28 @@ function App() {
   // Check authentication status on app initialization
   useEffect(() => {
     checkAuth();
+  }, [checkAuth]);
+
+  // Re-authenticate on HMR (Hot Module Replacement)
+  useEffect(() => {
+    if (import.meta.hot) {
+      import.meta.hot.on('vite:beforeUpdate', () => {
+        // Preserve authentication state during HMR
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+          console.log('🔄 HMR detected - preserving auth state');
+        }
+      });
+
+      import.meta.hot.on('vite:afterUpdate', () => {
+        // Re-check auth after HMR completes
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+          console.log('✅ HMR complete - restoring auth state');
+          checkAuth();
+        }
+      });
+    }
   }, [checkAuth]);
 
   return (
@@ -50,6 +77,8 @@ function App() {
       {/* Routes */}
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route
           path="/chat"
           element={
@@ -68,6 +97,30 @@ function App() {
         />
         <Route path="/dashboard/ranking" element={<RankingPage />} />
         <Route path="/hip/:hipId" element={<PublicProfilePage />} />
+        <Route
+          path="/affinity"
+          element={
+            <ProtectedRoute>
+              <AffinityAnalysisPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/resilience"
+          element={
+            <ProtectedRoute>
+              <ResilienceAnalysisPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/training"
+          element={
+            <ProtectedRoute>
+              <TrainingPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/admin"
           element={

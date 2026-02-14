@@ -1,5 +1,6 @@
 // HIP Dashboard Page
 import { useState, useEffect } from 'react';
+import { Navbar } from '@/components/common/Navbar';
 import { ScoreChart, IdentityCard, BlockchainSection } from '@/components/hip';
 import { hipApi } from '@/api/hipApi';
 import type { HIPProfile, ReanalyzeResponse } from '@/types/hip';
@@ -104,39 +105,47 @@ export default function HIPDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-indigo-600 border-t-transparent"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">HIP 프로필을 불러오는 중...</p>
+      <>
+        <Navbar />
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center pt-20">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-indigo-600 border-t-transparent"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">HIP 프로필을 불러오는 중...</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            HIP 프로필을 찾을 수 없습니다
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            아직 인간 신원 프로토콜 프로필이 없습니다.
-          </p>
-          <button
-            onClick={loadProfile}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-          >
-            HIP 프로필 생성하기
-          </button>
+      <>
+        <Navbar />
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center pt-20">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              HIP 프로필을 찾을 수 없습니다
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              아직 인간 신원 프로토콜 프로필이 없습니다.
+            </p>
+            <button
+              onClick={loadProfile}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            >
+              HIP 프로필 생성하기
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-4 py-12">
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 pt-20">
+        <div className="container mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4">
@@ -233,7 +242,8 @@ export default function HIPDashboard() {
             </div>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
