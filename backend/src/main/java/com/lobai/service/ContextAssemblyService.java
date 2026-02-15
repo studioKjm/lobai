@@ -111,11 +111,18 @@ public class ContextAssemblyService {
     }
 
     /**
-     * Tier 2: 대화 요약 블록 생성
+     * Tier 2: 대화 요약 블록 생성 (DAILY 요약 우선)
      */
     private String buildConversationSummaryBlock(Long userId, Long personaId) {
+        // DAILY 요약 우선, 없으면 기존 PERIODIC 폴백
         List<ConversationSummary> summaries = conversationSummaryRepository
-                .findRecentByUserIdAndPersonaId(userId, personaId, PageRequest.of(0, MAX_SUMMARIES));
+                .findRecentSummariesPrioritizingDaily(userId, PageRequest.of(0, MAX_SUMMARIES));
+
+        // DAILY가 없으면 기존 persona 기반 조회로 폴백
+        if (summaries.isEmpty()) {
+            summaries = conversationSummaryRepository
+                    .findRecentByUserIdAndPersonaId(userId, personaId, PageRequest.of(0, MAX_SUMMARIES));
+        }
 
         if (summaries.isEmpty()) return "";
 
@@ -123,9 +130,12 @@ public class ContextAssemblyService {
         sb.append("=== 이전 대화 요약 ===\n");
 
         for (ConversationSummary summary : summaries) {
-            sb.append(String.format("- [%s] %s\n",
-                    summary.getCreatedAt().toLocalDate(),
-                    summary.getSummaryText()));
+            String label = summary.getSummaryType() == ConversationSummary.SummaryType.DAILY
+                    ? "[일일요약]" : "[세션요약]";
+            String dateStr = summary.getSummaryDate() != null
+                    ? summary.getSummaryDate().toString()
+                    : summary.getCreatedAt().toLocalDate().toString();
+            sb.append(String.format("- %s [%s] %s\n", label, dateStr, summary.getSummaryText()));
         }
 
         return sb.toString();

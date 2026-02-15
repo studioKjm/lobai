@@ -23,6 +23,7 @@ public class PromptContext {
     private Integer hunger;
     private Integer energy;
     private Integer happiness;
+    private Integer trustLevel;
 
     // 메모리 블록 (ContextAssemblyService에서 조립)
     private String userProfileBlock;
@@ -33,4 +34,11 @@ public class PromptContext {
 
     // Provider 이름 (Provider별 프롬프트 조정용)
     private String providerName;
+
+    // 오늘 일정 블록 (AI가 scheduleId를 알 수 있도록)
+    private String todayScheduleBlock;
+
+    // 선제 대화 트리거 정보
+    private String proactiveTriggerType;
+    private String proactiveTriggerDetail;
 }

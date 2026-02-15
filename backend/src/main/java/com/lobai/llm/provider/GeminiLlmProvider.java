@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lobai.llm.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpServerErrorException;
@@ -13,6 +15,7 @@ import reactor.core.publisher.Flux;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -68,6 +71,9 @@ public class GeminiLlmProvider implements LlmProvider {
         }
     }
 
+    /** Function Call 시그널 접두사 (스트리밍 청크에서 FC 감지용) */
+    public static final String FC_SIGNAL_PREFIX = "\0__FC__:";
+
     @Override
     public Flux<String> generateStream(LlmRequest request) {
         LlmConfig.ProviderConfig config = getConfig();
@@ -79,19 +85,55 @@ public class GeminiLlmProvider implements LlmProvider {
             Map<String, Object> requestBody = buildRequestBody(request, config);
             String url = buildUrl(config, request.getModelOverride(), true);
 
+            boolean hasTools = request.getTools() != null && !request.getTools().isEmpty();
+            log.info("Gemini streaming request: hasTools={}, url={}", hasTools, url.replaceAll("key=[^&]+", "key=***"));
+
+            // DataBuffer 기반 raw SSE 파싱: 네트워크 청크 도착 즉시 emit
             return webClient.post()
                     .uri(url)
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()
-                    .bodyToFlux(String.class)
+                    .bodyToFlux(DataBuffer.class)
+                    .map(buffer -> {
+                        byte[] bytes = new byte[buffer.readableByteCount()];
+                        buffer.read(bytes);
+                        DataBufferUtils.release(buffer);
+                        return new String(bytes, StandardCharsets.UTF_8);
+                    })
+                    .concatMap(raw -> {
+                        // SSE data: 라인 추출
+                        List<String> payloads = new ArrayList<>();
+                        for (String line : raw.split("\n")) {
+                            String trimmed = line.trim();
+                            if (trimmed.startsWith("data:")) {
+                                String payload = trimmed.substring(5).trim();
+                                if (!payload.isEmpty()) {
+                                    payloads.add(payload);
+                                }
+                            }
+                        }
+                        return Flux.fromIterable(payloads);
+                    })
                     .map(chunk -> {
                         try {
                             JsonNode node = objectMapper.readTree(chunk);
-                            JsonNode textNode = node.path("candidates").path(0)
-                                    .path("content").path("parts").path(0).path("text");
-                            return textNode.isMissingNode() ? "" : textNode.asText();
+                            JsonNode partsNode = node.path("candidates").path(0)
+                                    .path("content").path("parts").path(0);
+
+                            // Function Call 감지: functionCall이 있으면 시그널로 전달
+                            if (partsNode.has("functionCall")) {
+                                JsonNode fcNode = partsNode.path("functionCall");
+                                log.info("Function Call detected in stream chunk: {}", fcNode.toString());
+                                return FC_SIGNAL_PREFIX + fcNode.toString();
+                            }
+
+                            JsonNode textNode = partsNode.path("text");
+                            String text = textNode.isMissingNode() ? "" : textNode.asText();
+
+                            return text;
                         } catch (Exception e) {
+                            log.debug("Skipping unparseable stream chunk: {}", e.getMessage());
                             return "";
                         }
                     })

@@ -1,12 +1,14 @@
 package com.lobai.service;
 
+import com.lobai.dto.MessageAnalysisResult;
 import com.lobai.entity.AffinityScore;
 import com.lobai.entity.Message;
 import com.lobai.entity.Message.MessageRole;
 import com.lobai.repository.AffinityScoreRepository;
+import com.lobai.repository.ChatSessionRepository;
 import com.lobai.repository.MessageRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,40 +23,55 @@ import java.util.stream.Collectors;
 /**
  * AffinityScoreService
  *
- * 친밀도 점수 계산 및 관리 서비스 (Phase 1)
+ * 친밀도 점수 계산 및 관리 서비스 (Phase 2 - 7차원 고도화)
+ * - Gemini AI 감성 분석 연동
+ * - 동적 가중치 (관계 단계별)
+ * - 노벨티 할인
+ * - 데이터 임계치
+ * - 존댓말→반말 전환 감지
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AffinityScoreService {
 
     private final AffinityScoreRepository affinityScoreRepository;
     private final MessageRepository messageRepository;
+    private final ChatSessionRepository chatSessionRepository;
+    private final LevelService levelService;
+    private final GeminiAffinityAnalyzer geminiAffinityAnalyzer;
+    private final AffinityHistoryService affinityHistoryService;
 
-    // 긍정 키워드
-    private static final String[] POSITIVE_WORDS = {
-        "감사", "고마워", "좋아", "멋져", "훌륭", "최고", "완벽",
-        "도움", "친절", "사랑", "기쁘", "행복", "만족", "좋네",
-        "대단", "놀라워", "멋지", "완전", "정말", "짱", "굿"
-    };
+    public AffinityScoreService(
+            AffinityScoreRepository affinityScoreRepository,
+            MessageRepository messageRepository,
+            ChatSessionRepository chatSessionRepository,
+            @Lazy LevelService levelService,
+            GeminiAffinityAnalyzer geminiAffinityAnalyzer,
+            AffinityHistoryService affinityHistoryService) {
+        this.affinityScoreRepository = affinityScoreRepository;
+        this.messageRepository = messageRepository;
+        this.chatSessionRepository = chatSessionRepository;
+        this.levelService = levelService;
+        this.geminiAffinityAnalyzer = geminiAffinityAnalyzer;
+        this.affinityHistoryService = affinityHistoryService;
+    }
 
-    // 부정 키워드
-    private static final String[] NEGATIVE_WORDS = {
-        "싫어", "화나", "짜증", "멍청", "바보", "쓰레기", "최악",
-        "못해", "안돼", "틀려", "나빠", "실망", "별로", "형편없"
-    };
-
-    // 불명확한 표현
+    // 기존 키워드 (clarity/context heuristic용)
     private static final String[] UNCLEAR_PHRASES = {
-        "아무거나", "그거", "그냥", "뭐라고", "저기", "저기요",
-        "음", "뭐", "글쎄"
+        "아무거나", "그거", "그냥", "뭐라고", "저기", "저기요", "음", "뭐", "글쎄"
+    };
+    private static final String[] CONTEXTUAL_WORDS = {
+        "그거", "그것", "그때", "아까", "방금", "위에서", "전에", "이전", "그래서", "그러면", "그런데"
     };
 
-    // 맥락 참조 표현
-    private static final String[] CONTEXTUAL_WORDS = {
-        "그거", "그것", "그때", "아까", "방금", "위에서", "전에",
-        "이전", "그래서", "그러면", "그런데"
-    };
+    // ==================== 동적 가중치 매핑 ====================
+
+    /** 관계 단계별 7차원 가중치: sentiment, clarity, context, usage, engagement, reciprocity, disclosure */
+    private static final Map<String, double[]> STAGE_WEIGHTS = Map.of(
+        "EARLY",      new double[]{0.20, 0.10, 0.10, 0.10, 0.30, 0.10, 0.10},
+        "DEVELOPING", new double[]{0.14, 0.14, 0.14, 0.14, 0.15, 0.15, 0.14},
+        "MATURE",     new double[]{0.10, 0.10, 0.15, 0.10, 0.15, 0.25, 0.15}
+    );
 
     /**
      * 사용자의 친밀도 점수 조회 (없으면 초기화)
@@ -78,6 +95,9 @@ public class AffinityScoreService {
                 .avgClarityScore(BigDecimal.valueOf(0.50))
                 .avgContextScore(BigDecimal.valueOf(0.50))
                 .avgUsageScore(BigDecimal.valueOf(0.50))
+                .avgEngagementDepth(BigDecimal.valueOf(0.50))
+                .avgSelfDisclosure(BigDecimal.ZERO)
+                .avgReciprocity(BigDecimal.valueOf(0.50))
                 .totalMessages(0)
                 .analyzedMessages(0)
                 .build();
@@ -87,11 +107,10 @@ public class AffinityScoreService {
     }
 
     /**
-     * 메시지 저장 시 호출 - 점수 분석 및 업데이트
+     * 메시지 저장 시 호출 - Gemini 분석 + 점수 업데이트
      */
     @Transactional
     public void analyzeAndUpdateScore(Message message) {
-        // 봇 메시지는 분석하지 않음
         if (message.getRole() != MessageRole.user) {
             return;
         }
@@ -99,24 +118,39 @@ public class AffinityScoreService {
         Long userId = message.getUser().getId();
 
         try {
-            // 1. 최근 대화 히스토리 조회 (컨텍스트 계산용)
+            // 1. 최근 대화 히스토리 조회
             Pageable historyPageable = PageRequest.of(0, 10);
-            List<Message> recentHistory = messageRepository
-                    .findRecentUserMessages(userId, historyPageable);
+            List<Message> recentHistory = messageRepository.findRecentUserMessages(userId, historyPageable);
+            List<String> recentContext = recentHistory.stream()
+                    .map(Message::getContent)
+                    .collect(Collectors.toList());
 
-            // 2. 개별 점수 계산
-            BigDecimal sentimentScore = calculateSentimentScore(message.getContent());
+            // 2. Gemini/heuristic 감성 분석
+            MessageAnalysisResult analysis = geminiAffinityAnalyzer.analyzeMessage(
+                    message.getContent(), recentContext);
+
+            // 3. 분석 결과를 Message 엔티티에 저장
+            message.setSentimentScore(analysis.getSentimentScore());
+            message.setPrimaryEmotion(analysis.getPrimaryEmotion());
+            message.setSelfDisclosureDepth(analysis.getSelfDisclosureDepth());
+            message.setHonorificLevel(analysis.getHonorificLevel());
+            message.setIsQuestion(analysis.isQuestion());
+            message.setIsInitiative(analysis.isInitiative());
+            message.setIsAnalyzed(true);
+
+            // 4. 기존 clarity/context/usage 점수도 계산하여 저장
             BigDecimal clarityScore = calculateClarityScore(message.getContent());
             BigDecimal contextScore = calculateContextScore(message.getContent(), recentHistory);
             BigDecimal usageScore = calculateUsageScore(userId);
+            message.setClarityScore(clarityScore);
+            message.setContextScore(contextScore);
+            message.setUsageScore(usageScore);
 
-            // 3. 메시지에 점수 저장 (Message 엔티티 업데이트는 별도 처리 필요)
-            // TODO: Message 엔티티에 setter 추가 필요
+            log.debug("Message analyzed: userId={}, messageId={}, sentiment={}, emotion={}, disclosure={}",
+                    userId, message.getId(), analysis.getSentimentScore(),
+                    analysis.getPrimaryEmotion(), analysis.getSelfDisclosureDepth());
 
-            log.debug("Message scores calculated: userId={}, messageId={}, sentiment={}, clarity={}, context={}, usage={}",
-                    userId, message.getId(), sentimentScore, clarityScore, contextScore, usageScore);
-
-            // 4. 종합 친밀도 점수 재계산
+            // 5. 종합 친밀도 점수 재계산
             recalculateOverallScore(userId);
 
         } catch (Exception e) {
@@ -126,229 +160,315 @@ public class AffinityScoreService {
     }
 
     /**
-     * 사용자의 종합 친밀도 점수 재계산
+     * 사용자의 종합 친밀도 점수 재계산 (7차원)
      */
     @Transactional
     public AffinityScore recalculateOverallScore(Long userId) {
         AffinityScore affinityScore = getUserAffinityScore(userId);
 
-        // 1. 개별 점수 평균 조회
+        // 1. 기존 4개 차원 평균 조회
         Double avgSentiment = messageRepository.getAverageSentimentByUser(userId);
         Double avgClarity = messageRepository.getAverageClarityByUser(userId);
         Double avgContext = messageRepository.getAverageContextByUser(userId);
         Double avgUsage = messageRepository.getAverageUsageByUser(userId);
 
-        // 2. null 처리 및 기본값 설정
-        BigDecimal sentimentScore = avgSentiment != null ?
-                BigDecimal.valueOf(avgSentiment).setScale(2, RoundingMode.HALF_UP) :
-                BigDecimal.ZERO;
-        BigDecimal clarityScore = avgClarity != null ?
-                BigDecimal.valueOf(avgClarity).setScale(2, RoundingMode.HALF_UP) :
-                BigDecimal.valueOf(0.50);
-        BigDecimal contextScore = avgContext != null ?
-                BigDecimal.valueOf(avgContext).setScale(2, RoundingMode.HALF_UP) :
-                BigDecimal.valueOf(0.50);
-        BigDecimal usageScore = avgUsage != null ?
-                BigDecimal.valueOf(avgUsage).setScale(2, RoundingMode.HALF_UP) :
-                BigDecimal.valueOf(0.50);
+        BigDecimal sentimentScore = toBigDecimal(avgSentiment, BigDecimal.ZERO);
+        BigDecimal clarityScore = toBigDecimal(avgClarity, BigDecimal.valueOf(0.50));
+        BigDecimal contextScore = toBigDecimal(avgContext, BigDecimal.valueOf(0.50));
+        BigDecimal usageScore = toBigDecimal(avgUsage, BigDecimal.valueOf(0.50));
 
-        // 3. 종합 점수 계산 (0-100)
-        // Formula: (Sentiment+1)/2*25 + Clarity*25 + Context*25 + Usage*25
-        double sentimentNormalized = (sentimentScore.doubleValue() + 1.0) / 2.0 * 25.0;
-        double clarityNormalized = clarityScore.doubleValue() * 25.0;
-        double contextNormalized = contextScore.doubleValue() * 25.0;
-        double usageNormalized = usageScore.doubleValue() * 25.0;
+        // 2. 새로운 3개 차원 계산
+        BigDecimal engagementDepth = calculateEngagementDepth(userId);
+        BigDecimal selfDisclosure = calculateSelfDisclosureDepth(userId);
+        BigDecimal reciprocity = calculateReciprocity(userId);
 
-        double overallScoreValue = sentimentNormalized + clarityNormalized +
-                                    contextNormalized + usageNormalized;
-        BigDecimal overallScore = BigDecimal.valueOf(overallScoreValue).setScale(2, RoundingMode.HALF_UP);
-
-        // 4. 점수 업데이트
-        affinityScore.updateScores(sentimentScore, clarityScore, contextScore, usageScore);
-        affinityScore.updateOverallScore(overallScore);
-
-        // 5. 메시지 통계 업데이트
+        // 3. 메타데이터 업데이트
         long totalMessages = messageRepository.countByUserIdAndRole(userId, MessageRole.user);
-        affinityScore.incrementTotalMessages(); // TODO: 실제 카운트로 교체
+        Long totalSessions = chatSessionRepository.countByUserId(userId);
+        affinityScore.setTotalMessages((int) totalMessages);
+        affinityScore.setTotalSessions(totalSessions != null ? totalSessions.intValue() : 0);
+
+        // 4. 관계 단계 결정
+        String stage = determineRelationshipStage(affinityScore.getLevel());
+        affinityScore.setRelationshipStage(stage);
+
+        // 5. 데이터 임계치 결정
+        String threshold = determineDataThreshold((int) totalMessages);
+        affinityScore.setDataThresholdStatus(threshold);
+
+        // 6. 노벨티 할인 계산
+        BigDecimal noveltyDiscount = getNoveltyDiscount(totalSessions != null ? totalSessions.intValue() : 0);
+        affinityScore.setNoveltyDiscountFactor(noveltyDiscount);
+
+        // 7. 존댓말→반말 전환 감지
+        boolean honorificTransition = detectHonorificTransition(userId);
+        affinityScore.setHonorificTransitionDetected(honorificTransition);
+
+        // 8. 동적 가중치로 7차원 종합 점수 계산
+        double[] weights = STAGE_WEIGHTS.getOrDefault(stage, STAGE_WEIGHTS.get("EARLY"));
+
+        // 감정 점수 정규화: -1~1 → 0~1
+        double sentNorm = (sentimentScore.doubleValue() + 1.0) / 2.0;
+        double claritN = clarityScore.doubleValue();
+        double ctxNorm = contextScore.doubleValue();
+        double usageN = usageScore.doubleValue();
+        double engNorm = engagementDepth.doubleValue();
+        double recipN = reciprocity.doubleValue();
+        double discN = selfDisclosure.doubleValue();
+
+        // 가중 평균 (0~1 범위) → 0~100으로 스케일링
+        double rawScore = (sentNorm * weights[0] + claritN * weights[1] + ctxNorm * weights[2] +
+                usageN * weights[3] + engNorm * weights[4] + recipN * weights[5] + discN * weights[6]) * 100.0;
+
+        // 9. 노벨티 할인 적용
+        double adjustedScore = 50 + (rawScore - 50) * noveltyDiscount.doubleValue();
+
+        // 10. 존댓말 전환 보너스
+        if (honorificTransition) {
+            adjustedScore = Math.min(100.0, adjustedScore + 5.0);
+        }
+
+        adjustedScore = Math.max(0.0, Math.min(100.0, adjustedScore));
+        BigDecimal overallScore = BigDecimal.valueOf(adjustedScore).setScale(2, RoundingMode.HALF_UP);
+
+        // 11. 모든 점수 업데이트
+        affinityScore.updateAllScores(sentimentScore, clarityScore, contextScore, usageScore,
+                engagementDepth, selfDisclosure, reciprocity);
+        affinityScore.updateOverallScore(overallScore);
+        affinityScore.incrementAnalyzedMessages();
 
         AffinityScore saved = affinityScoreRepository.save(affinityScore);
 
-        log.info("Affinity score updated: userId={}, overall={}, level={}, sentiment={}, clarity={}, context={}, usage={}",
-                userId, saved.getOverallScore(), saved.getLevel(),
-                sentimentScore, clarityScore, contextScore, usageScore);
+        // 12. 일별 스냅샷 저장
+        affinityHistoryService.saveOrUpdateDailySnapshot(saved);
+
+        log.info("Affinity score updated (7-dim): userId={}, overall={}, level={}, stage={}, threshold={}, " +
+                 "engagement={}, disclosure={}, reciprocity={}, novelty={}",
+                userId, saved.getOverallScore(), saved.getLevel(), stage, threshold,
+                engagementDepth, selfDisclosure, reciprocity, noveltyDiscount);
+
+        // 13. 사용자 레벨 자동 업데이트 (별도 트랜잭션으로 실행하여 롤백 방지)
+        // Note: LevelService는 trust_levels 테이블(HIP 점수 기반)을 사용하므로,
+        // affinity score와는 별개의 시스템임. 에러 발생 시 친밀도 점수 저장은 유지되어야 함.
+        // TODO: 향후 친밀도 기반 별도 레벨 시스템 구축 필요
+        // (현재는 LevelService 호출을 주석 처리)
 
         return saved;
     }
 
+    // ==================== 새로운 차원 계산 ====================
+
     /**
-     * Sentiment Score 계산 (감정 점수)
-     * 범위: -1.00 ~ 1.00
+     * Engagement Depth 계산 (CPS 기반)
+     * - 세션당 평균 턴 수
+     * - 세션 빈도 (최근 4주)
+     * - 자발적 복귀율 (48시간 내)
      */
-    private BigDecimal calculateSentimentScore(String content) {
-        int positiveCount = 0;
-        int negativeCount = 0;
-
-        String lowerContent = content.toLowerCase();
-
-        for (String word : POSITIVE_WORDS) {
-            if (lowerContent.contains(word)) {
-                positiveCount++;
-            }
+    private BigDecimal calculateEngagementDepth(Long userId) {
+        Long totalSessions = chatSessionRepository.countByUserId(userId);
+        if (totalSessions == null || totalSessions == 0) {
+            return BigDecimal.valueOf(0.50).setScale(2, RoundingMode.HALF_UP);
         }
 
-        for (String word : NEGATIVE_WORDS) {
-            if (lowerContent.contains(word)) {
-                negativeCount++;
-            }
-        }
+        Integer totalMessages = chatSessionRepository.sumTotalMessages(userId);
+        double avgTurnsPerSession = (totalMessages != null && totalMessages > 0)
+                ? (double) totalMessages / totalSessions : 0;
 
-        // 점수 계산: -1.0 (매우 부정) ~ 1.0 (매우 긍정)
-        int total = positiveCount + negativeCount;
-        if (total == 0) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP); // 중립
-        }
+        // 턴 점수: 5-20턴이 적절, 정규화
+        double turnsScore = Math.min(1.0, avgTurnsPerSession / 20.0);
 
-        double score = (double) (positiveCount - negativeCount) / total;
+        // 세션 빈도: 최근 4주 세션 수 / 4 (주 1회 = 0.25, 주 4회 = 1.0)
+        LocalDateTime fourWeeksAgo = LocalDateTime.now().minusWeeks(4);
+        Long recentSessions = chatSessionRepository.countByUserIdAndStartedAtAfter(userId, fourWeeksAgo);
+        double weeklyFrequency = (recentSessions != null ? recentSessions : 0) / 4.0;
+        double frequencyScore = Math.min(1.0, weeklyFrequency / 4.0);
+
+        // 자발적 복귀율: 48시간 내 재방문 세션 비율
+        Long returnSessions = chatSessionRepository.countVoluntaryReturnSessions(userId);
+        double returnRate = (returnSessions != null && totalSessions > 1)
+                ? (double) returnSessions / (totalSessions - 1) : 0;
+        double returnScore = Math.min(1.0, returnRate);
+
+        double score = turnsScore * 0.4 + frequencyScore * 0.3 + returnScore * 0.3;
         return BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP);
     }
 
     /**
-     * Clarity Score 계산 (명확성 점수)
-     * 범위: 0.00 ~ 1.00
+     * Self-Disclosure Depth 계산 (Gemini 분석 기반)
      */
-    private BigDecimal calculateClarityScore(String content) {
-        double score = 0.5; // 기본 점수
+    private BigDecimal calculateSelfDisclosureDepth(Long userId) {
+        Double avg = messageRepository.getAverageSelfDisclosureByUser(userId);
+        return toBigDecimal(avg, BigDecimal.ZERO);
+    }
 
+    /**
+     * Reciprocity 계산 (상호작용 품질)
+     * - 주도율, 질문율, 응답 정교함
+     */
+    private BigDecimal calculateReciprocity(Long userId) {
+        long totalMessages = messageRepository.countByUserIdAndRole(userId, MessageRole.user);
+        if (totalMessages == 0) {
+            return BigDecimal.valueOf(0.50).setScale(2, RoundingMode.HALF_UP);
+        }
+
+        // 주도율
+        long initiativeCount = messageRepository.countInitiativeMessages(userId);
+        double initiativeRate = (double) initiativeCount / totalMessages;
+        initiativeRate = Math.min(1.0, initiativeRate);
+
+        // 질문율
+        long questionCount = messageRepository.countQuestionMessages(userId);
+        double questionRate = (double) questionCount / totalMessages;
+        questionRate = Math.min(1.0, questionRate);
+
+        // 응답 정교함: 평균 메시지 길이 (20자+ 기준, 200자에서 만점)
+        Double avgLength = messageRepository.getAverageMessageLengthByUser(userId, MessageRole.user);
+        double elaboration = 0.0;
+        if (avgLength != null && avgLength >= 20) {
+            elaboration = Math.min(1.0, (avgLength - 20) / 180.0);
+        }
+
+        double score = initiativeRate * 0.4 + questionRate * 0.3 + elaboration * 0.3;
+        return BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    // ==================== 메타데이터 계산 ====================
+
+    /**
+     * 관계 단계 결정 (레벨 기반)
+     */
+    private String determineRelationshipStage(int level) {
+        if (level <= 2) return "EARLY";
+        if (level == 3) return "DEVELOPING";
+        return "MATURE";
+    }
+
+    /**
+     * 데이터 임계치 결정
+     */
+    private String determineDataThreshold(int totalMessages) {
+        if (totalMessages < 10) return "COLLECTING";
+        if (totalMessages < 50) return "INITIAL";
+        return "FULL";
+    }
+
+    /**
+     * 노벨티 할인 계산 (Leite 연구 기반)
+     */
+    private BigDecimal getNoveltyDiscount(int totalSessions) {
+        if (totalSessions <= 5) return BigDecimal.valueOf(0.60);
+        if (totalSessions <= 15) return BigDecimal.valueOf(0.85);
+        return BigDecimal.ONE;
+    }
+
+    /**
+     * 존댓말→반말 전환 감지
+     */
+    private boolean detectHonorificTransition(Long userId) {
+        List<String> timeline = messageRepository.getHonorificTimeline(userId);
+        if (timeline.size() < 10) return false;
+
+        int total = timeline.size();
+        int earlyCount = (int) (total * 0.3);
+        int lateStart = total - earlyCount;
+
+        // 초기 30%의 formal 비율
+        long earlyFormal = timeline.subList(0, earlyCount).stream()
+                .filter("formal"::equals).count();
+        double earlyFormalRate = (double) earlyFormal / earlyCount;
+
+        // 최근 30%의 informal/mixed 비율
+        long lateInformal = timeline.subList(lateStart, total).stream()
+                .filter(h -> "informal".equals(h) || "mixed".equals(h)).count();
+        double lateInformalRate = (double) lateInformal / earlyCount;
+
+        return earlyFormalRate >= 0.6 && lateInformalRate >= 0.5;
+    }
+
+    // ==================== 기존 heuristic 점수 계산 (유지) ====================
+
+    private BigDecimal calculateClarityScore(String content) {
+        double score = 0.5;
         int length = content.length();
 
-        // 1. 길이 체크 (너무 짧거나 너무 길면 감점)
-        if (length < 5) {
-            score -= 0.3; // 너무 짧음
-        } else if (length > 500) {
-            score -= 0.2; // 너무 김
-        } else if (length >= 10 && length <= 200) {
-            score += 0.2; // 적절한 길이
-        }
+        if (length < 5) score -= 0.3;
+        else if (length > 500) score -= 0.2;
+        else if (length >= 10 && length <= 200) score += 0.2;
 
-        // 2. 질문/명령의 명확성
         if (content.contains("?") || content.contains("어떻게") ||
             content.contains("무엇") || content.contains("왜")) {
-            score += 0.2; // 명확한 질문
+            score += 0.2;
         }
 
-        // 3. 구두점 사용 (문장 구조)
         long punctuationCount = content.chars()
                 .filter(c -> c == '.' || c == ',' || c == '!' || c == '?')
                 .count();
-        if (punctuationCount > 0 && length > 50) {
-            score += 0.1; // 구조화된 문장
-        }
+        if (punctuationCount > 0 && length > 50) score += 0.1;
 
-        // 4. 불명확한 표현 감점
         for (String phrase : UNCLEAR_PHRASES) {
-            if (content.contains(phrase)) {
-                score -= 0.1;
-                break;
-            }
+            if (content.contains(phrase)) { score -= 0.1; break; }
         }
 
-        // 0.0 ~ 1.0 범위로 제한
-        score = Math.max(0.0, Math.min(1.0, score));
-        return BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(Math.max(0.0, Math.min(1.0, score))).setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Context Awareness Score 계산 (맥락 유지 점수)
-     * 범위: 0.00 ~ 1.00
-     */
     private BigDecimal calculateContextScore(String currentMessage, List<Message> recentHistory) {
         if (recentHistory.isEmpty()) {
-            return BigDecimal.valueOf(0.5).setScale(2, RoundingMode.HALF_UP); // 첫 메시지는 중립
+            return BigDecimal.valueOf(0.5).setScale(2, RoundingMode.HALF_UP);
         }
 
         double score = 0.5;
-
-        // 최근 3개 메시지 분석
-        List<Message> last3Messages = recentHistory.stream()
+        List<Message> last3 = recentHistory.stream()
                 .filter(m -> m.getRole() == MessageRole.user)
                 .limit(3)
                 .collect(Collectors.toList());
 
-        // 1. 키워드 중복 체크 (주제 일관성)
         Set<String> currentKeywords = extractKeywords(currentMessage);
-        for (Message prevMsg : last3Messages) {
+        for (Message prevMsg : last3) {
             Set<String> prevKeywords = extractKeywords(prevMsg.getContent());
-
-            // 교집합 크기
-            long commonKeywords = currentKeywords.stream()
-                    .filter(prevKeywords::contains)
-                    .count();
-
-            if (commonKeywords > 0) {
-                score += 0.15; // 주제 연결성
-            }
+            long common = currentKeywords.stream().filter(prevKeywords::contains).count();
+            if (common > 0) score += 0.15;
         }
 
-        // 2. 대명사/지시어 사용 (맥락 참조)
         for (String word : CONTEXTUAL_WORDS) {
-            if (currentMessage.contains(word)) {
-                score += 0.1;
-                break;
-            }
+            if (currentMessage.contains(word)) { score += 0.1; break; }
         }
 
-        // 0.0 ~ 1.0 범위로 제한
-        score = Math.max(0.0, Math.min(1.0, score));
-        return BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(Math.max(0.0, Math.min(1.0, score))).setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Usage Pattern Score 계산 (AI 활용 태도 점수)
-     * 범위: 0.00 ~ 1.00
-     */
     private BigDecimal calculateUsageScore(Long userId) {
         double score = 0.5;
 
-        // 1. 대화 빈도 (최근 7일)
         LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
-        long messageCount = messageRepository.countByUserIdAndRoleAndCreatedAtAfter(
-                userId, MessageRole.user, weekAgo);
+        long messageCount = messageRepository.countByUserIdAndRoleAndCreatedAtAfter(userId, MessageRole.user, weekAgo);
 
-        if (messageCount >= 20) {
-            score += 0.2; // 활발한 사용
-        } else if (messageCount >= 10) {
-            score += 0.1; // 적당한 사용
-        } else if (messageCount < 3) {
-            score -= 0.1; // 저조한 사용
-        }
+        if (messageCount >= 20) score += 0.2;
+        else if (messageCount >= 10) score += 0.1;
+        else if (messageCount < 3) score -= 0.1;
 
-        // 2. 질문 다양성 (다양한 페르소나 사용)
         long uniquePersonas = messageRepository.countUniquePersonasByUser(userId);
-        if (uniquePersonas >= 3) {
-            score += 0.2; // 다양한 활용
-        } else if (uniquePersonas >= 2) {
-            score += 0.1;
-        }
+        if (uniquePersonas >= 3) score += 0.2;
+        else if (uniquePersonas >= 2) score += 0.1;
 
-        // 3. 평균 메시지 길이 (너무 짧지 않은 질문)
         Double avgLength = messageRepository.getAverageMessageLengthByUser(userId, MessageRole.user);
-        if (avgLength != null && avgLength >= 20) {
-            score += 0.1; // 충분한 맥락 제공
-        }
+        if (avgLength != null && avgLength >= 20) score += 0.1;
 
-        // 0.0 ~ 1.0 범위로 제한
-        score = Math.max(0.0, Math.min(1.0, score));
-        return BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(Math.max(0.0, Math.min(1.0, score))).setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * 간단한 키워드 추출 (명사 추정)
-     */
     private Set<String> extractKeywords(String text) {
-        // 공백, 구두점으로 분리하고 길이 2 이상인 단어만 추출
         return Arrays.stream(text.split("[\\s,.!?]+"))
                 .filter(word -> word.length() >= 2)
                 .map(String::toLowerCase)
                 .collect(Collectors.toSet());
+    }
+
+    // ==================== Utility ====================
+
+    private BigDecimal toBigDecimal(Double value, BigDecimal defaultVal) {
+        return value != null
+                ? BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP)
+                : defaultVal;
     }
 }

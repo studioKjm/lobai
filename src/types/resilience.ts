@@ -1,5 +1,5 @@
 /**
- * AI Resilience Report Types
+ * AI Resilience Report Types (Phase 2 - 친밀도 연동)
  */
 
 export interface ResilienceReport {
@@ -20,6 +20,14 @@ export interface ResilienceReport {
   weaknesses: string[];
   simulationResult: string;
   detailedFeedback: string;
+
+  // 친밀도 연동 필드 (Phase 2)
+  avgEngagementDepth?: number;
+  avgSelfDisclosure?: number;
+  avgReciprocity?: number;
+  affinityScoreAtReport?: number;
+  affinityLevelAtReport?: number;
+  recommendations?: string[];
 
   analyzedMessageCount: number;
   analyzedPeriodDays: number;

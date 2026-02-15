@@ -23,4 +23,5 @@ public class UserResponse {
     private Integer currentHappiness;
     private Long currentPersonaId;
     private Integer trustLevel;
+    private Integer experiencePoints;
 }

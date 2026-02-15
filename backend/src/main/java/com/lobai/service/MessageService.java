@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -43,6 +45,7 @@ public class MessageService {
     private final PersonaRepository personaRepository;
     private final UserStatsHistoryRepository userStatsHistoryRepository;
     private final GeminiService geminiService;
+    private final ScheduleService scheduleService;
     private final AffinityScoreService affinityScoreService;
     private final FileStorageService fileStorageService;
     private final LobCoinService lobCoinService;
@@ -51,6 +54,7 @@ public class MessageService {
     private final PersonaPromptTemplate personaPromptTemplate;
     private final LlmRouter llmRouter;
     private final LlmUsageService llmUsageService;
+    private final LevelService levelService;
 
     /**
      * 메시지 전송 및 AI 응답 생성
@@ -98,8 +102,18 @@ public class MessageService {
                     userId, e.getMessage());
         }
 
+        // 4-3. 경험치 지급 (채팅 메시지당 5 XP)
+        try {
+            levelService.addExperience(userId, 5, "채팅 메시지");
+        } catch (Exception e) {
+            log.warn("XP reward failed, continuing: userId={}, error={}", userId, e.getMessage());
+        }
+
         // 5. 프롬프트 생성 + LLM 호출
         LlmProvider provider = llmRouter.resolve(LlmTaskType.CHAT_CONVERSATION);
+
+        // 오늘 일정 블록 생성
+        String todayScheduleBlock = buildTodayScheduleBlock(userId);
 
         PromptContext promptContext = PromptContext.builder()
                 .persona(persona)
@@ -107,8 +121,10 @@ public class MessageService {
                 .hunger(user.getCurrentHunger())
                 .energy(user.getCurrentEnergy())
                 .happiness(user.getCurrentHappiness())
+                .trustLevel(user.getTrustLevel())
                 .userProfileBlock(context.getUserProfileBlock())
                 .conversationSummaryBlock(context.getConversationSummaryBlock())
+                .todayScheduleBlock(todayScheduleBlock)
                 .providerName(provider.getProviderName())
                 .build();
 
@@ -132,16 +148,12 @@ public class MessageService {
         String aiResponseText = llmResponse.getContent() != null ? llmResponse.getContent()
                 : "죄송해요, 지금 제 머리가 좀 복잡해서 답변이 어려워요.";
 
-        // Function Call 처리 (기존 로직 위임)
+        // Function Call 처리
         if (llmResponse.hasFunctionCall()) {
-            aiResponseText = geminiService.generateResponse(
-                    request.getContent(),
-                    new ArrayList<>(), // FC는 기존 로직으로 처리
-                    persona,
-                    user.getCurrentHunger(),
-                    user.getCurrentEnergy(),
-                    user.getCurrentHappiness(),
-                    null, null);
+            String functionName = llmResponse.getFunctionCall().getName();
+            String argsJson = llmResponse.getFunctionCall().getArgsJson();
+            log.info("Function call detected: {} with args: {}", functionName, argsJson);
+            aiResponseText = geminiService.handleFunctionCall(llmRequest, functionName, argsJson, userId);
         }
 
         // 6. AI 응답 저장 (LLM 메타데이터 포함)
@@ -184,6 +196,43 @@ public class MessageService {
                 .botMessage(MessageResponse.from(botMessage))
                 .statsUpdate(StatsResponse.from(user))
                 .build();
+    }
+
+    /**
+     * 오늘 일정 블록 생성 (AI가 scheduleId를 알 수 있도록)
+     */
+    private String buildTodayScheduleBlock(Long userId) {
+        try {
+            LocalDate today = LocalDate.now();
+            LocalDateTime dayStart = today.atStartOfDay();
+            LocalDateTime dayEnd = today.plusDays(1).atStartOfDay();
+
+            List<com.lobai.dto.response.ScheduleResponse> schedules =
+                    scheduleService.getSchedulesByDateRangeForUser(dayStart, dayEnd, userId);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("=== 오늘 일정 ===\n");
+
+            if (schedules.isEmpty()) {
+                sb.append("일정이 없습니다.\n");
+            } else {
+                for (com.lobai.dto.response.ScheduleResponse s : schedules) {
+                    String startTime = s.getStartTime().length() >= 16 ? s.getStartTime().substring(11, 16) : s.getStartTime();
+                    String endTime = s.getEndTime().length() >= 16 ? s.getEndTime().substring(11, 16) : s.getEndTime();
+                    String completedMark = s.getIsCompleted() ? "완료됨" : "미완료";
+                    sb.append(String.format("[ID:%d] %s~%s %s (%s) - %s\n",
+                            s.getId(), startTime, endTime, s.getTitle(), s.getType(), completedMark));
+                }
+            }
+
+            sb.append("\n일정 수정/삭제/완료 시 위 목록에서 ID를 찾아 사용하세요.\n");
+            sb.append("사용자가 일정 이름으로 언급하면 해당 ID를 매칭하여 함수를 호출하세요.\n");
+
+            return sb.toString();
+        } catch (Exception e) {
+            log.debug("Could not build today's schedule block: {}", e.getMessage());
+            return "";
+        }
     }
 
     private Persona resolvePersona(User user, Long personaId) {
@@ -308,7 +357,8 @@ public class MessageService {
                 user.getCurrentEnergy(),
                 user.getCurrentHappiness(),
                 attachmentUrl,
-                attachmentType
+                attachmentType,
+                user.getTrustLevel()
         );
 
         // 7. AI 응답 저장
@@ -390,7 +440,9 @@ public class MessageService {
                     "DAILY_CHECK_IN",
                     String.format("일일 첫 체크인 (%s)", today)
             );
-            log.info("Daily check-in reward (10 LobCoin) given to user {}", userId);
+            // 일일 첫 체크인 XP 보너스
+            levelService.addExperience(userId, 10, "일일 첫 체크인");
+            log.info("Daily check-in reward (10 LobCoin + 10 XP) given to user {}", userId);
 
             // 연속 채팅 스트릭 보너스
             int chatStreak = calculateChatStreak(userId, today);
@@ -402,8 +454,10 @@ public class MessageService {
                         "CHAT_STREAK",
                         String.format("%d일 연속 채팅 보너스", chatStreak)
                 );
-                log.info("Chat streak bonus ({} LobCoin) for {}d streak, user {}",
-                        streakBonus, chatStreak, userId);
+                // 스트릭 XP 보너스
+                levelService.addExperience(userId, streakBonus, chatStreak + "일 연속 채팅");
+                log.info("Chat streak bonus ({} LobCoin + {} XP) for {}d streak, user {}",
+                        streakBonus, streakBonus, chatStreak, userId);
             }
         }
     }

@@ -173,6 +173,32 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<java.sql.Date> findDistinctChatDatesByUserId(@Param("userId") Long userId,
                                                        @Param("since") LocalDateTime since);
 
+    // ==================== Affinity Enhancement (Phase 2) ====================
+
+    /**
+     * 사용자의 평균 self_disclosure_depth
+     */
+    @Query("SELECT AVG(m.selfDisclosureDepth) FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.selfDisclosureDepth IS NOT NULL")
+    Double getAverageSelfDisclosureByUser(@Param("userId") Long userId);
+
+    /**
+     * 주도적 메시지 수 (is_initiative = true)
+     */
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.isInitiative = true")
+    long countInitiativeMessages(@Param("userId") Long userId);
+
+    /**
+     * 질문 메시지 수 (is_question = true)
+     */
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.isQuestion = true")
+    long countQuestionMessages(@Param("userId") Long userId);
+
+    /**
+     * 존댓말 레벨 타임라인 (honorific_level이 있는 메시지만, 시간순)
+     */
+    @Query("SELECT m.honorificLevel FROM Message m WHERE m.user.id = :userId AND m.role = 'user' AND m.honorificLevel IS NOT NULL ORDER BY m.createdAt ASC")
+    List<String> getHonorificTimeline(@Param("userId") Long userId);
+
     /**
      * 사용자의 모든 메시지 삭제
      */

@@ -15,6 +15,7 @@ export interface Message {
   attachmentName?: string;
   llmProvider?: string;
   llmModel?: string;
+  messageType?: 'NORMAL' | 'PROACTIVE';
 }
 
 export interface Persona {
@@ -40,6 +41,7 @@ export interface User {
   currentHappiness: number;
   currentPersonaId?: number;
   trustLevel?: number;
+  experiencePoints?: number;
 }
 
 // Auth types (for future backend integration)
@@ -133,6 +135,32 @@ export interface ScheduleEvent {
   isCompleted: boolean;
   timezone: string;
   notifyBeforeMinutes?: number;
+  createdAt: string;
+}
+
+// Daily Conversation Summary Types
+export interface DailySummaryItem {
+  date: string;          // "2026-02-15"
+  summaryPreview: string;
+  messageCount: number;
+  keyFactsPreview: string;
+}
+
+export interface DailySummaryDetail {
+  date: string;
+  summaryText: string;
+  keyFacts: string;      // JSON string of key facts array
+  messageCount: number;
+  messages: SummaryMessageResponse[];
+}
+
+export interface SummaryMessageResponse {
+  id: number;
+  role: string;          // "user" or "bot"
+  content: string;
+  personaId?: number;
+  personaName?: string;
+  messageType: string;
   createdAt: string;
 }
 

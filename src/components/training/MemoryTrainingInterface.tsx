@@ -12,7 +12,7 @@ interface MemoryProblemData {
 
 interface MemoryTrainingInterfaceProps {
   session: TrainingSession;
-  onComplete: () => void;
+  onComplete: (updatedSession: TrainingSession) => void;
 }
 
 type Phase = 'instruction' | 'memorize' | 'wait' | 'answer' | 'submitting';
@@ -27,6 +27,7 @@ const MemoryTrainingInterface: React.FC<MemoryTrainingInterfaceProps> = ({
   const [userAnswer, setUserAnswer] = useState('');
   const [startTime] = useState(Date.now());
   const [error, setError] = useState('');
+  const [displaySpeed, setDisplaySpeed] = useState(1000); // 기본 1초 (500ms ~ 3000ms)
 
   // Parse problem data on mount
   useEffect(() => {
@@ -42,26 +43,30 @@ const MemoryTrainingInterface: React.FC<MemoryTrainingInterfaceProps> = ({
   useEffect(() => {
     if (phase !== 'memorize' || !problemData) return;
 
-    const displayTime =
-      problemData.display_time_per_item || problemData.display_time_total || 2000;
     const totalItems = problemData.data.length;
 
     if (currentItemIndex < totalItems) {
       const timer = setTimeout(() => {
         setCurrentItemIndex((prev) => prev + 1);
-      }, displayTime);
+      }, displaySpeed);
 
       return () => clearTimeout(timer);
     } else {
       // All items shown, move to wait phase
       setPhase('wait');
-      const waitTimer = setTimeout(() => {
-        setPhase('answer');
-      }, 1000);
-
-      return () => clearTimeout(waitTimer);
     }
-  }, [phase, currentItemIndex, problemData]);
+  }, [phase, currentItemIndex, problemData, displaySpeed]);
+
+  // Wait phase: transition to answer phase after delay
+  useEffect(() => {
+    if (phase !== 'wait') return;
+
+    const waitTimer = setTimeout(() => {
+      setPhase('answer');
+    }, 1000);
+
+    return () => clearTimeout(waitTimer);
+  }, [phase]);
 
   const startMemorization = () => {
     setPhase('memorize');
@@ -79,8 +84,8 @@ const MemoryTrainingInterface: React.FC<MemoryTrainingInterfaceProps> = ({
 
     try {
       const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-      await submitAnswer(session.id, userAnswer.trim(), timeTaken);
-      onComplete();
+      const updatedSession = await submitAnswer(session.id, userAnswer.trim(), timeTaken);
+      onComplete(updatedSession);
     } catch (err) {
       setError(getErrorMessage(err));
       setPhase('answer');
@@ -143,6 +148,34 @@ const MemoryTrainingInterface: React.FC<MemoryTrainingInterfaceProps> = ({
               <li>3. 순서와 내용이 정확해야 합니다</li>
             </ol>
           </div>
+
+          {/* Display Speed Control */}
+          <div className="bg-blue-500/20 rounded-lg p-6 mb-6 max-w-md mx-auto">
+            <p className="text-lg mb-4 font-semibold">⏱️ 표시 속도 설정</p>
+            <div className="flex items-center gap-4">
+              <span className="text-sm opacity-70 w-16 text-left">빠름</span>
+              <input
+                type="range"
+                min="500"
+                max="3000"
+                step="100"
+                value={displaySpeed}
+                onChange={(e) => setDisplaySpeed(Number(e.target.value))}
+                className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-400"
+              />
+              <span className="text-sm opacity-70 w-16 text-right">느림</span>
+            </div>
+            <div className="mt-3 text-center">
+              <span className="text-2xl font-bold text-blue-400">
+                {(displaySpeed / 1000).toFixed(1)}초
+              </span>
+              <span className="text-sm opacity-60 ml-2">/ 항목</span>
+            </div>
+            <p className="text-xs opacity-50 mt-2">
+              각 단어/숫자가 표시되는 시간을 조절하세요
+            </p>
+          </div>
+
           <button
             onClick={startMemorization}
             className="px-8 py-4 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-lg transition-all transform hover:scale-105"

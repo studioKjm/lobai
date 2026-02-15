@@ -12,6 +12,8 @@ import { ResilienceAnalysisPage } from '@/pages/ResilienceAnalysisPage';
 import { TrainingPage } from '@/pages/TrainingPage';
 import { AboutPage } from '@/pages/AboutPage';
 import { PricingPage } from '@/pages/PricingPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+import { LobCoinShopPage } from '@/pages/LobCoinShopPage';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -88,6 +90,14 @@ function App() {
           }
         />
         <Route
+          path="/shop"
+          element={
+            <ProtectedRoute>
+              <LobCoinShopPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
@@ -118,6 +128,14 @@ function App() {
           element={
             <ProtectedRoute>
               <TrainingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />

@@ -131,13 +131,13 @@ public class LlmUsageService {
      * 사용자 구독 티어별 일일 토큰 제한
      */
     private int getDailyLimitForUser(User user) {
-        String tier = user.getSubscriptionTier();
-        if (tier == null) tier = "free";
+        User.SubscriptionTier tier = user.getSubscriptionTier();
+        if (tier == null) tier = User.SubscriptionTier.free;
 
-        return switch (tier.toLowerCase()) {
-            case "premium" -> premiumDailyLimit;
-            case "basic" -> basicDailyLimit;
-            default -> freeDailyLimit;
+        return switch (tier) {
+            case premium -> premiumDailyLimit;
+            case basic -> basicDailyLimit;
+            case free -> freeDailyLimit;
         };
     }
 }

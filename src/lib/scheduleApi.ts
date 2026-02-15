@@ -41,7 +41,7 @@ export const scheduleApi = {
   /**
    * Update schedule
    */
-  updateSchedule: async (id: number, data: Partial<CreateScheduleRequest>): Promise<ScheduleEvent> => {
+  updateSchedule: async (id: number, data: Partial<CreateScheduleRequest> & { isCompleted?: boolean }): Promise<ScheduleEvent> => {
     const response = await api.put<ApiResponse<ScheduleEvent>>(`/schedules/${id}`, data);
     return response.data.data;
   },

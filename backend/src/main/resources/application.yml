@@ -82,6 +82,8 @@ llm:
       FUNCTION_CALLING: gemini
       CONVERSATION_SUMMARY: openai
       RESILIENCE_ANALYSIS: gemini
+      PROACTIVE_MESSAGE: gemini
+      AFFINITY_ANALYSIS: gemini
     fallback-chain:
       openai: gemini
       gemini: openai

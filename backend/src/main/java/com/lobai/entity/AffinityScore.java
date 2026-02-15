@@ -59,6 +59,40 @@ public class AffinityScore {
     @Builder.Default
     private BigDecimal avgUsageScore = BigDecimal.valueOf(0.50);  // 0.00 ~ 1.00
 
+    // 새로운 차원 점수 (Phase 2)
+    @Column(name = "avg_engagement_depth", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal avgEngagementDepth = BigDecimal.valueOf(0.50);  // 0.00 ~ 1.00
+
+    @Column(name = "avg_self_disclosure", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal avgSelfDisclosure = BigDecimal.valueOf(0.00);  // 0.00 ~ 1.00
+
+    @Column(name = "avg_reciprocity", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal avgReciprocity = BigDecimal.valueOf(0.50);  // 0.00 ~ 1.00
+
+    // 관계 메타데이터 (Phase 2)
+    @Column(name = "relationship_stage", length = 20)
+    @Builder.Default
+    private String relationshipStage = "EARLY";  // EARLY, DEVELOPING, MATURE
+
+    @Column(name = "total_sessions")
+    @Builder.Default
+    private Integer totalSessions = 0;
+
+    @Column(name = "novelty_discount_factor", precision = 3, scale = 2)
+    @Builder.Default
+    private BigDecimal noveltyDiscountFactor = BigDecimal.valueOf(0.60);
+
+    @Column(name = "data_threshold_status", length = 20)
+    @Builder.Default
+    private String dataThresholdStatus = "COLLECTING";  // COLLECTING, INITIAL, FULL
+
+    @Column(name = "honorific_transition_detected")
+    @Builder.Default
+    private Boolean honorificTransitionDetected = false;
+
     // 통계 정보
     @Column(name = "total_messages", nullable = false)
     @Builder.Default
@@ -96,6 +130,21 @@ public class AffinityScore {
         if (context != null) this.avgContextScore = context;
         if (usage != null) this.avgUsageScore = usage;
     }
+
+    public void updateAllScores(BigDecimal sentiment, BigDecimal clarity, BigDecimal context, BigDecimal usage,
+                                 BigDecimal engagement, BigDecimal disclosure, BigDecimal reciprocity) {
+        updateScores(sentiment, clarity, context, usage);
+        if (engagement != null) this.avgEngagementDepth = engagement;
+        if (disclosure != null) this.avgSelfDisclosure = disclosure;
+        if (reciprocity != null) this.avgReciprocity = reciprocity;
+    }
+
+    public void setTotalMessages(int count) { this.totalMessages = count; }
+    public void setTotalSessions(int count) { this.totalSessions = count; }
+    public void setRelationshipStage(String stage) { this.relationshipStage = stage; }
+    public void setNoveltyDiscountFactor(BigDecimal factor) { this.noveltyDiscountFactor = factor; }
+    public void setDataThresholdStatus(String status) { this.dataThresholdStatus = status; }
+    public void setHonorificTransitionDetected(Boolean detected) { this.honorificTransitionDetected = detected; }
 
     public void updateOverallScore(BigDecimal score) {
         this.overallScore = score;

@@ -7,19 +7,36 @@ const LEVEL_CONFIG: Record<number, { name: string; color: string; bg: string; bo
   3: { name: '신뢰하는 관계', color: 'text-cyan-400', bg: 'from-cyan-500/10 to-teal-500/10', border: 'border-cyan-500/25', glow: '' },
   4: { name: '충성스러운 지지자', color: 'text-purple-400', bg: 'from-purple-500/10 to-violet-500/10', border: 'border-purple-500/25', glow: 'shadow-purple-500/10' },
   5: { name: '최측근', color: 'text-amber-400', bg: 'from-amber-500/15 to-yellow-500/10', border: 'border-amber-500/30', glow: 'shadow-amber-500/15' },
+  6: { name: '경고 대상', color: 'text-orange-400', bg: 'from-orange-500/10 to-red-500/10', border: 'border-orange-500/20', glow: '' },
+  7: { name: '제한 대상', color: 'text-orange-500', bg: 'from-orange-600/10 to-red-600/10', border: 'border-orange-500/25', glow: '' },
+  8: { name: '위험 대상', color: 'text-red-400', bg: 'from-red-500/10 to-red-600/10', border: 'border-red-500/25', glow: '' },
+  9: { name: '차단 위험', color: 'text-red-500', bg: 'from-red-600/10 to-rose-700/10', border: 'border-red-600/25', glow: '' },
+  10: { name: '완전 차단', color: 'text-red-600', bg: 'from-red-700/10 to-rose-800/10', border: 'border-red-700/30', glow: 'shadow-red-500/15' },
 };
 
+// XP thresholds matching backend
+const XP_THRESHOLDS = [0, 0, 100, 300, 700, 1500];
+
 function getLevelConfig(level: number) {
-  return LEVEL_CONFIG[Math.min(Math.max(level, 1), 5)] || LEVEL_CONFIG[1];
+  const clamped = Math.min(Math.max(level, 1), 10);
+  return LEVEL_CONFIG[clamped] || LEVEL_CONFIG[1];
+}
+
+function getXpProgressPercent(level: number, xp: number): number {
+  if (level >= 5) return 100;
+  const currentThreshold = XP_THRESHOLDS[level] || 0;
+  const nextThreshold = XP_THRESHOLDS[level + 1] || 100;
+  const levelTotal = nextThreshold - currentThreshold;
+  if (levelTotal <= 0) return 0;
+  return Math.min(100, Math.max(0, ((xp - currentThreshold) / levelTotal) * 100));
 }
 
 export function UserLevelBadge() {
   const { user } = useAuthStore();
   const level = user?.trustLevel ?? 1;
+  const xp = user?.experiencePoints ?? 0;
   const config = getLevelConfig(level);
-
-  // Progress to next level (visual estimation based on level ranges 0-20, 21-40, 41-60, 61-80, 81-100)
-  const progressPercent = level >= 5 ? 100 : ((level - 1) / 4) * 100;
+  const progressPercent = getXpProgressPercent(level, xp);
 
   return (
     <div
@@ -52,7 +69,7 @@ export function UserLevelBadge() {
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* XP Progress bar */}
       <div className="mt-2 h-1 bg-white/5 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ease-out ${
@@ -62,8 +79,9 @@ export function UserLevelBadge() {
         />
       </div>
       <div className="flex justify-between mt-1 text-[9px] opacity-30">
-        <span>Lv.1</span>
-        <span>Lv.5</span>
+        <span>Lv.{level}</span>
+        <span className="opacity-60">{xp} XP</span>
+        <span>Lv.{Math.min(level + 1, 10)}</span>
       </div>
     </div>
   );

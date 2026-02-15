@@ -1,8 +1,7 @@
 import React from 'react';
 import { UserLevelCard } from './UserLevelCard';
-import { ChatHistoryCard } from './ChatHistoryCard';
+import { ConversationHistoryCard } from './ConversationHistoryCard';
 import { WeeklyScheduleView } from '@/components/schedule/WeeklyScheduleView';
-import { LobCoinShop } from '@/components/chat/LobCoinShop';
 
 export const ChatDashboardSection: React.FC = () => {
   return (
@@ -12,16 +11,11 @@ export const ChatDashboardSection: React.FC = () => {
       {/* Top 2-column grid */}
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         <UserLevelCard />
-        <ChatHistoryCard />
+        <ConversationHistoryCard />
       </div>
 
       {/* Full-width weekly schedule */}
       <WeeklyScheduleView />
-
-      {/* LobCoin Shop */}
-      <div className="mt-8">
-        <LobCoinShop />
-      </div>
     </div>
   );
 };

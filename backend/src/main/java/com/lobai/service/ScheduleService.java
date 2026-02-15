@@ -27,13 +27,22 @@ public class ScheduleService {
     private final ScheduleRepository scheduleRepository;
     private final UserRepository userRepository;
     private final LobCoinService lobCoinService;
+    private final LevelService levelService;
 
     /**
-     * Create a new schedule
+     * Create a new schedule (SecurityContext에서 userId 추출)
      */
     @Transactional
     public ScheduleResponse createSchedule(CreateScheduleRequest request) {
         Long userId = SecurityUtil.getCurrentUserId();
+        return createScheduleForUser(request, userId);
+    }
+
+    /**
+     * Create a new schedule (userId 직접 전달 - 스트리밍/비동기 컨텍스트용)
+     */
+    @Transactional
+    public ScheduleResponse createScheduleForUser(CreateScheduleRequest request, Long userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
 
@@ -56,18 +65,12 @@ public class ScheduleService {
     }
 
     /**
-     * Get schedules by date range
+     * Get schedules by date range (SecurityContext에서 userId 추출)
      */
     @Transactional(readOnly = true)
     public List<ScheduleResponse> getSchedulesByDateRange(LocalDateTime start, LocalDateTime end) {
         Long userId = SecurityUtil.getCurrentUserId();
-        List<Schedule> schedules = scheduleRepository
-            .findByUserIdAndStartTimeBetweenAndIsDeletedFalse(userId, start, end);
-
-        log.info("Found {} schedules for user {} between {} and {}", schedules.size(), userId, start, end);
-        return schedules.stream()
-            .map(this::toScheduleResponse)
-            .collect(Collectors.toList());
+        return getSchedulesByDateRangeForUser(start, end, userId);
     }
 
     /**
@@ -100,11 +103,19 @@ public class ScheduleService {
     }
 
     /**
-     * Update schedule
+     * Update schedule (SecurityContext에서 userId 추출)
      */
     @Transactional
     public ScheduleResponse updateSchedule(Long id, UpdateScheduleRequest request) {
         Long userId = SecurityUtil.getCurrentUserId();
+        return updateScheduleForUser(id, request, userId);
+    }
+
+    /**
+     * Update schedule (userId 직접 전달 - 스트리밍/비동기 컨텍스트용)
+     */
+    @Transactional
+    public ScheduleResponse updateScheduleForUser(Long id, UpdateScheduleRequest request, Long userId) {
         Schedule schedule = scheduleRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다"));
 
@@ -112,7 +123,6 @@ public class ScheduleService {
             throw new IllegalStateException("권한이 없습니다");
         }
 
-        // Track completion status change for reward
         boolean wasCompleted = schedule.getIsCompleted();
         boolean isNowCompleted = false;
 
@@ -142,23 +152,20 @@ public class ScheduleService {
         schedule.validateTimeRange();
         Schedule saved = scheduleRepository.save(schedule);
 
-        // Reward for completing a schedule (20 LobCoin)
         if (!wasCompleted && isNowCompleted) {
             try {
                 lobCoinService.earnLobCoin(
-                    userId,
-                    20,
-                    "MISSION_COMPLETE",
+                    userId, 20, "MISSION_COMPLETE",
                     String.format("일정 완료: %s", schedule.getTitle())
                 );
-                log.info("Mission completion reward (20 LobCoin) given to user {} for schedule {}",
-                         userId, id);
+                levelService.addExperience(userId, 15, "일정 완료: " + schedule.getTitle());
+                log.info("Mission completion reward (20 LobCoin + 15 XP) given to user {} for schedule {}", userId, id);
             } catch (Exception e) {
                 log.warn("Failed to give mission completion reward: {}", e.getMessage());
             }
         }
 
-        log.info("Schedule updated: {}", id);
+        log.info("Schedule updated: {} for user {}", id, userId);
         return toScheduleResponse(saved);
     }
 
@@ -168,6 +175,14 @@ public class ScheduleService {
     @Transactional
     public void deleteSchedule(Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
+        deleteScheduleForUser(id, userId);
+    }
+
+    /**
+     * Delete schedule (userId 직접 전달 - 스트리밍/비동기 컨텍스트용)
+     */
+    @Transactional
+    public void deleteScheduleForUser(Long id, Long userId) {
         Schedule schedule = scheduleRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다"));
 
@@ -177,7 +192,56 @@ public class ScheduleService {
 
         schedule.setIsDeleted(true);
         scheduleRepository.save(schedule);
-        log.info("Schedule soft deleted: {}", id);
+        log.info("Schedule soft deleted: {} for user {}", id, userId);
+    }
+
+    /**
+     * Complete schedule (userId 직접 전달 - 스트리밍/비동기 컨텍스트용)
+     */
+    @Transactional
+    public ScheduleResponse completeScheduleForUser(Long id, Long userId) {
+        Schedule schedule = scheduleRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다"));
+
+        if (!schedule.getUser().getId().equals(userId)) {
+            throw new IllegalStateException("권한이 없습니다");
+        }
+
+        if (schedule.getIsCompleted()) {
+            log.info("Schedule {} already completed", id);
+            return toScheduleResponse(schedule);
+        }
+
+        schedule.setIsCompleted(true);
+        Schedule saved = scheduleRepository.save(schedule);
+
+        try {
+            lobCoinService.earnLobCoin(
+                userId, 20, "MISSION_COMPLETE",
+                String.format("일정 완료: %s", schedule.getTitle())
+            );
+            levelService.addExperience(userId, 15, "일정 완료: " + schedule.getTitle());
+            log.info("Mission completion reward (20 LobCoin + 15 XP) given to user {} for schedule {}", userId, id);
+        } catch (Exception e) {
+            log.warn("Failed to give mission completion reward: {}", e.getMessage());
+        }
+
+        log.info("Schedule completed: {} for user {}", id, userId);
+        return toScheduleResponse(saved);
+    }
+
+    /**
+     * Get schedules by date range (userId 직접 전달 - 스트리밍/비동기 컨텍스트용)
+     */
+    @Transactional(readOnly = true)
+    public List<ScheduleResponse> getSchedulesByDateRangeForUser(LocalDateTime start, LocalDateTime end, Long userId) {
+        List<Schedule> schedules = scheduleRepository
+            .findByUserIdAndStartTimeBetweenAndIsDeletedFalse(userId, start, end);
+
+        log.info("Found {} schedules for user {} between {} and {}", schedules.size(), userId, start, end);
+        return schedules.stream()
+            .map(this::toScheduleResponse)
+            .collect(Collectors.toList());
     }
 
     /**

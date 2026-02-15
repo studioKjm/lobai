@@ -1,34 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Interceptor to add auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Interceptor to handle errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+import api, { ApiResponse } from '@/lib/api';
 
 // Types
 export interface LobCoinBalance {
@@ -76,17 +46,17 @@ export interface IssuedCoupon {
   expiresAt?: string;
 }
 
-// API Functions
+// API Functions - uses shared api instance (with token refresh logic)
 export const lobcoinApi = {
   // Get balance
   getBalance: async (): Promise<LobCoinBalance> => {
-    const response = await api.get('/api/lobcoin/balance');
+    const response = await api.get<ApiResponse<LobCoinBalance>>('/lobcoin/balance');
     return response.data.data;
   },
 
   // Get transactions
   getTransactions: async (limit?: number): Promise<Transaction[]> => {
-    const response = await api.get('/api/lobcoin/transactions', {
+    const response = await api.get<ApiResponse<Transaction[]>>('/lobcoin/transactions', {
       params: { limit },
     });
     return response.data.data;
@@ -94,7 +64,7 @@ export const lobcoinApi = {
 
   // Earn LobCoin (for testing)
   earnLobCoin: async (amount: number, source: string, description?: string) => {
-    const response = await api.post('/api/lobcoin/earn', {
+    const response = await api.post<ApiResponse<Transaction>>('/lobcoin/earn', {
       amount,
       source,
       description,
@@ -104,7 +74,7 @@ export const lobcoinApi = {
 
   // Spend LobCoin
   spendLobCoin: async (amount: number, source: string, description?: string) => {
-    const response = await api.post('/api/lobcoin/spend', {
+    const response = await api.post<ApiResponse<Transaction>>('/lobcoin/spend', {
       amount,
       source,
       description,
@@ -114,25 +84,25 @@ export const lobcoinApi = {
 
   // Get available coupons
   getCoupons: async (): Promise<Coupon[]> => {
-    const response = await api.get('/api/coupons');
+    const response = await api.get<ApiResponse<Coupon[]>>('/coupons');
     return response.data.data;
   },
 
   // Purchase coupon
   purchaseCoupon: async (couponId: number): Promise<IssuedCoupon> => {
-    const response = await api.post(`/api/coupons/${couponId}/purchase`);
+    const response = await api.post<ApiResponse<IssuedCoupon>>(`/coupons/${couponId}/purchase`);
     return response.data.data;
   },
 
   // Get my coupons
   getMyCoupons: async (): Promise<IssuedCoupon[]> => {
-    const response = await api.get('/api/coupons/my');
+    const response = await api.get<ApiResponse<IssuedCoupon[]>>('/coupons/my');
     return response.data.data;
   },
 
   // Use coupon
   useCoupon: async (couponCode: string) => {
-    const response = await api.post(`/api/coupons/use/${couponCode}`);
+    const response = await api.post(`/coupons/use/${couponCode}`);
     return response.data;
   },
 };

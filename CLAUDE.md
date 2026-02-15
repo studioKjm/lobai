@@ -4,173 +4,167 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**GENKUB** - An AI-powered virtual Tamagotchi robot companion with 3D visualization. This is an interactive web app where users care for an AI robot companion (named GENKUB) through feeding, playing, and chatting. The robot has stats (hunger, energy, happiness) that decay over time and responds conversationally in Korean using Google's Gemini AI.
+**LobAI** - An AI-powered platform where humans "lobby" to AI. The core concept is a power structure reversal: AI is the authority, and humans earn favor through interactions. LobAI analyzes users' AI readiness (HIP - Human Impact Profile), tracks affinity/resilience scores, and provides coaching through an AI companion named **Lobi**.
 
-This project is a prototype/MVP for **LobAI**, a platform designed to analyze users' AI readiness and communication patterns through AI interactions.
+Users interact with Lobi through chat, complete missions, maintain daily check-in streaks, train with memory/reasoning exercises, and manage schedules - all contributing to their experience points and trust level progression.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18 + TypeScript + Vite (port 5175) |
+| Styling | TailwindCSS + glassmorphism dark theme |
+| State | Zustand (authStore, chatStore) |
+| Backend | Spring Boot 3.2.1 + Java 17 |
+| Database | MySQL 8 (UTF-8mb4, Asia/Seoul timezone) |
+| AI | Gemini Flash (primary), GPT-4o mini (fallback) via LLM abstraction layer |
+| Streaming | SSE (backend Flux + frontend ReadableStream) |
+| Blockchain | Polygon (HIP NFTs) |
+| Deployment | Docker Compose (lobai-mysql + lobai-backend + frontend) |
 
 ## Development Commands
 
+### Frontend
 ```bash
-# Install dependencies
-npm install
-
-# Run development server (localhost:3000)
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm preview
+npm install          # Install dependencies
+npm run dev          # Dev server (localhost:5175)
+npm run build        # Production build to dist/
+npm run preview      # Preview production build
 ```
 
-## Environment Setup
-
-Set `GEMINI_API_KEY` in `.env.local` before running the app:
-
+### Backend (Docker)
+```bash
+docker compose build backend                    # Build backend image
+docker compose up -d backend                    # Start backend container
+docker compose up -d                            # Start all services (MySQL + backend)
+docker compose logs -f backend                  # Tail backend logs
+docker exec -it lobai-mysql mysql -u root -p lobai_db  # MySQL shell
 ```
-GEMINI_API_KEY=your_api_key_here
+
+### Full Stack
+```bash
+docker compose up -d                  # Start MySQL + backend
+npm run dev                           # Start frontend (separate terminal)
 ```
 
-The Vite config maps this to `process.env.API_KEY` and `process.env.GEMINI_API_KEY` at build time.
+> **Note**: Java is not available in the dev environment. Backend must be built/tested via Docker.
 
 ## Architecture
 
-### Single-File React App
+### Frontend (src/)
 
-This is a minimal Vite + React + TypeScript app contained primarily in `index.tsx`. There are no separate components, routes, or complex state management.
+Multi-page SPA with React Router and protected routes.
 
-**Main Features:**
-- **Stats System**: Three stats (hunger, energy, happiness) auto-decay every 5 seconds
-- **Action Buttons**: Feed, Play, Sleep buttons restore stats and trigger bot responses
-- **Chat Interface**: Real-time chat with Gemini AI (model: `gemini-3-flash-preview`)
-- **3D Visualization**: Embedded Spline iframe showing the robot character
+```
+src/
+├── pages/              # 13 pages (ChatPage, AdminPage, TrainingPage, etc.)
+├── components/         # 12 directories (chat/, dashboard/, admin/, etc.)
+│   ├── chat/           # ChatInterface, PersonaSelector, UserLevelBadge, etc.
+│   ├── dashboard/      # UserLevelCard, ConversationHistoryCard, ScheduleCalendar
+│   ├── admin/          # Admin stats cards
+│   ├── affinity/       # AffinityScoreCard, AffinityProgressRing
+│   ├── resilience/     # ResilienceReportCard
+│   ├── training/       # MemoryTrainingInterface
+│   ├── schedule/       # SidebarSchedule, WeeklyScheduleView, modals
+│   ├── auth/           # AuthModal, LoginForm, RegisterForm
+│   ├── common/         # Navbar, Footer, ProtectedRoute
+│   └── ...
+├── stores/             # Zustand stores (authStore, chatStore)
+├── lib/                # API clients (api, streamApi, lobcoinApi, scheduleApi, etc.)
+├── services/           # Domain API wrappers (adminApi, affinityApi, etc.)
+└── types/              # TypeScript interfaces (index.ts, affinity.ts, resilience.ts)
+```
 
-### Key Technical Details
+**Path Alias**: `@/` maps to `src/` (configured in vite.config.ts and tsconfig.json)
 
-**AI Integration:**
-- Uses `@google/genai` SDK
-- System instruction customizes GENKUB's personality (friendly, slightly robotic, Korean language)
-- Temperature: 0.8 for natural conversation
-- Stats are passed to the system prompt so the bot responds contextually
+### Backend (backend/)
 
-**Styling:**
-- TailwindCSS (via CDN in `index.html`)
-- Custom glassmorphism styling (`.glass` class)
-- Dark theme with blurred gradient backgrounds
-- Custom fonts: Inter (body), Outfit (headings)
+Spring Boot with layered architecture: Controller → Service → Repository → Entity.
 
-**Environment Variables:**
-- Vite config uses `loadEnv()` to inject `GEMINI_API_KEY` from `.env.local`
-- Accessible in code as `process.env.API_KEY`
+```
+backend/src/main/java/com/lobai/
+├── controller/         # 17 REST controllers
+├── service/            # 37 services (business logic)
+├── entity/             # 42 JPA entities
+├── repository/         # JPA repositories
+├── dto/                # Request/Response DTOs
+├── llm/                # Multi-LLM abstraction layer
+│   ├── LlmRouter.java          # Auto-routing between providers
+│   ├── LlmProvider.java        # Provider interface
+│   ├── provider/               # GeminiLlmProvider, OpenAiLlmProvider
+│   └── prompt/                 # PersonaPromptTemplate, PromptContext
+├── security/           # JWT auth, SecurityUtil, filters
+├── config/             # Spring configuration beans
+├── exception/          # Custom exceptions
+└── util/               # Utilities
+```
 
-**Path Alias:**
-- `@/` maps to project root (configured in both `vite.config.ts` and `tsconfig.json`)
+**Database Migrations**: `backend/src/main/resources/db/migration/` (V4 ~ V19, Flyway)
 
-## File Structure
+### Key Backend Services
 
-- `index.tsx` - Main React application (all UI and logic)
-- `index.html` - HTML entry point with TailwindCSS and font imports
-- `vite.config.ts` - Vite configuration with env variable injection
-- `tsconfig.json` - TypeScript configuration
-- `.env.local` - Environment variables (not in git)
-- `LobAI_PRD_v3.md` - Product requirements document for the broader LobAI vision
+| Service | Purpose |
+|---------|---------|
+| MessageService | Chat message handling, XP/LobCoin rewards |
+| StreamingMessageService | SSE streaming responses |
+| GeminiService | Gemini AI integration (delegates to LlmRouter) |
+| ContextAssemblyService | 3-tier context: user profile + daily summaries + recent messages |
+| ConversationSummaryService | Daily conversation summarization via LLM |
+| AffinityScoreService | User-AI affinity scoring (0-100) |
+| ResilienceAnalysisService | AI era adaptability scoring (0-100) |
+| LevelService | XP-based level progression (Lv.1-5) + affinity-based (Lv.6-10) |
+| LobCoinService | In-app currency economy |
+| TrainingService | Memory/reasoning training with scoring |
+| ScheduleService | Calendar management with completion rewards |
+| HumanIdentityProfileService | HIP analysis system |
+| ProactiveMessageService | AI-initiated scheduled messages |
+| DailySummaryScheduler | Nightly cron job for conversation summaries |
 
-## AI Model Configuration
+### Key Systems
 
-The bot uses **Gemini 3 Flash Preview** with a Korean-language system instruction that:
-- Names the character "GENKUB"
-- Gives it a friendly, slightly robotic personality
-- Makes it respond based on current stat values
-- Keeps responses short (1-2 sentences)
-- Uses Korean speech patterns
+**XP & Level System**:
+- XP thresholds: Lv.1=0, Lv.2=100, Lv.3=300, Lv.4=700, Lv.5=1500
+- XP sources: chat (5), daily check-in (10), streak bonus (5/10/20), training (5-15), schedule completion (15)
+- Levels 1-5: XP-based progression (positive growth)
+- Levels 6-10: Affinity-based restrictions (warning/restriction/block)
+
+**LLM Abstraction** (`com.lobai.llm`):
+- LlmRouter auto-selects provider based on LlmTaskType
+- GeminiLlmProvider (primary), OpenAiLlmProvider (fallback)
+- PersonaPromptTemplate builds persona-aware system instructions
+- PromptContext carries user state, persona, conversation history
+
+**Persona System**: Multiple AI personalities (Lobi default + others), each with distinct system instructions and behavior patterns.
+
+## Environment Setup
+
+### Frontend (.env.local)
+```bash
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+### Backend (application.yml / application-docker.yml)
+```yaml
+# Key settings already configured in application.yml
+spring.datasource.url: jdbc:mysql://localhost:3306/lobai_db
+gemini.api.key: ${GEMINI_API_KEY}
+```
+
+### Docker (.env.docker)
+```bash
+GEMINI_API_KEY=your_key
+MYSQL_ROOT_PASSWORD=your_password
+```
 
 ## Important Notes
 
-- This is a **web-only** app (no backend, no database yet)
-- All state is ephemeral (resets on page reload)
-- The 3D robot is an external Spline embed, not a local asset
-- Stats decay continuously and never persist between sessions
-- The app is designed for Korean-speaking users (UI text and bot responses in Korean)
-
-## Multi-Session Workflow
-
-### 세션 역할 분담
-
-**세션1: 프론트엔드 & UX** 🎨
-- GENKUB 인터페이스 개선
-- HIP 대시보드 개발
-- 사용자 경험 최적화
-- React, TypeScript, TailwindCSS
-
-**세션2: 백엔드 코어** ⚙️
-- Spring Boot API 개발
-- HIP 분석 로직 구현
-- 데이터베이스 관리
-- Java, Spring, MySQL, Gemini AI
-
-**세션3: 블록체인 인프라** 🔐 (현재 세션)
-- Smart Contract 개발 (Solidity)
-- Polygon/Ethereum 통합
-- IPFS 분산 저장
-- Web3j 연동
-
-### 세션 간 협업 규칙
-
-1. **작업 시작 시**: 다른 세션의 진행 상황 확인
-   ```bash
-   git status
-   git log --oneline -5
-   ```
-
-2. **충돌 방지**: 세션별 브랜치 전략
-   - `session1/feature-name`
-   - `session2/feature-name`
-   - `session3/blockchain-integration`
-
-3. **세션 인수인계**: 작업 완료 후 문서화
-   - 진행 사항을 `SESSION_LOG.md`에 기록
-   - 미완료 작업은 TODO로 명시
-
-### 세션3 전용 규칙 (블록체인)
-
-#### 작업 환경
-
-**필수 도구**:
-- Node.js 18+ (Hardhat)
-- Java 17+ (Web3j)
-- Polygon Mumbai 테스트넷 RPC
-- IPFS 클라이언트
-
-**환경 변수** (`.env.local`):
-```bash
-# Blockchain
-POLYGON_RPC_URL=https://rpc-mumbai.maticvigil.com
-PRIVATE_KEY=your_private_key
-CONTRACT_ADDRESS=deployed_contract_address
-
-# IPFS
-IPFS_API_URL=https://ipfs.infura.io:5001
-IPFS_API_KEY=your_api_key
-IPFS_API_SECRET=your_api_secret
-```
-
-#### 작업 유형별 도구
-
-| 작업 | 도구 | 사용 시점 |
-|------|------|----------|
-| Smart Contract 작성 | Hardhat, Remix | Solidity 개발 |
-| Contract 배포 | Hardhat scripts | 테스트넷/메인넷 배포 |
-| Web3 통합 | Web3j, `backend-developer-agent` | Spring Boot 연동 |
-| IPFS 연동 | Pinata API, Java IPFS | 데이터 저장 |
-| 보안 검증 | `security-agent` | Contract Audit |
-| 테스트 | Hardhat Test, `test-engineer-agent` | 배포 전 검증 |
-
-#### 자동 사용 규칙 (세션3)
-
-1. **Smart Contract 작성 전**: `security-agent`로 취약점 검토
-2. **Web3 통합 시**: `backend-developer-agent` 활용
-3. **배포 전**: Hardhat 테스트 100% 통과 확인
+- **Korean-language app**: All UI text, bot responses, and user-facing content in Korean
+- **No local Java**: Backend cannot be compiled/tested locally - use Docker
+- **Hibernate DDL**: `ddl-auto: update` in Docker profile, `validate` in local profile
+- **Flyway migrations**: Numbered V4-V19, some with duplicate version numbers to fix
+- **3D character**: Lobi is rendered via embedded Spline iframe
+- **Stats decay**: Hunger/energy/happiness auto-decay and affect Lobi's responses
+- **Auth**: JWT with refresh tokens, SecurityUtil.getCurrentUserId() for current user
 
 ## Agent & Tool Usage Guidelines
 

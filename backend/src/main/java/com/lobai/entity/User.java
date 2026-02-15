@@ -127,6 +127,11 @@ public class User {
     @Builder.Default
     private Integer lobcoinBalance = 0;
 
+    // V19: Experience Points
+    @Column(name = "experience_points")
+    @Builder.Default
+    private Integer experiencePoints = 0;
+
     // V9: Referral System
     @Column(name = "referral_code", length = 10, unique = true)
     private String referralCode;
@@ -252,6 +257,10 @@ public class User {
 
     public void incrementReferralCount() {
         this.referralCount = (this.referralCount != null ? this.referralCount : 0) + 1;
+    }
+
+    public void addExperience(int amount) {
+        this.experiencePoints = (this.experiencePoints != null ? this.experiencePoints : 0) + amount;
     }
 
     /**

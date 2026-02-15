@@ -61,6 +61,24 @@ public class Message {
     @Builder.Default
     private Boolean isAnalyzed = false;  // 점수 분석 완료 여부
 
+    // Gemini 감성 분석 결과 필드 (Phase 2)
+    @Column(name = "primary_emotion", length = 30)
+    private String primaryEmotion;  // joy, sadness, anger, fear, surprise, disgust, trust, anticipation, neutral
+
+    @Column(name = "self_disclosure_depth", precision = 3, scale = 2)
+    private BigDecimal selfDisclosureDepth;  // 0.00 ~ 1.00
+
+    @Column(name = "honorific_level", length = 20)
+    private String honorificLevel;  // formal, informal, mixed
+
+    @Column(name = "is_question")
+    @Builder.Default
+    private Boolean isQuestion = false;
+
+    @Column(name = "is_initiative")
+    @Builder.Default
+    private Boolean isInitiative = false;
+
     // 파일 첨부 필드
     @Column(name = "attachment_url", length = 500)
     private String attachmentUrl;  // 첨부 파일 URL (로컬 경로 또는 클라우드 URL)
@@ -70,6 +88,11 @@ public class Message {
 
     @Column(name = "attachment_name", length = 255)
     private String attachmentName;  // 원본 파일명
+
+    // 메시지 타입 (NORMAL: 일반, PROACTIVE: 선제 대화)
+    @Column(name = "message_type", length = 20)
+    @Builder.Default
+    private String messageType = "NORMAL";
 
     // LLM 메타데이터 필드
     @Column(name = "llm_provider", length = 50)
@@ -88,6 +111,20 @@ public class Message {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
+
+    // Setters for score fields (used by AffinityScoreService)
+    public void setSentimentScore(BigDecimal sentimentScore) { this.sentimentScore = sentimentScore; }
+    public void setClarityScore(BigDecimal clarityScore) { this.clarityScore = clarityScore; }
+    public void setContextScore(BigDecimal contextScore) { this.contextScore = contextScore; }
+    public void setUsageScore(BigDecimal usageScore) { this.usageScore = usageScore; }
+    public void setIsAnalyzed(Boolean isAnalyzed) { this.isAnalyzed = isAnalyzed; }
+
+    // Setters for Gemini analysis fields
+    public void setPrimaryEmotion(String primaryEmotion) { this.primaryEmotion = primaryEmotion; }
+    public void setSelfDisclosureDepth(BigDecimal selfDisclosureDepth) { this.selfDisclosureDepth = selfDisclosureDepth; }
+    public void setHonorificLevel(String honorificLevel) { this.honorificLevel = honorificLevel; }
+    public void setIsQuestion(Boolean isQuestion) { this.isQuestion = isQuestion; }
+    public void setIsInitiative(Boolean isInitiative) { this.isInitiative = isInitiative; }
 
     /**
      * Message Role Enum

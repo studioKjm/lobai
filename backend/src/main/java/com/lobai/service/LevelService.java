@@ -43,7 +43,7 @@ public class LevelService {
             return;
         }
 
-        int score = affinityScore.getTotalScore();
+        int score = affinityScore.getOverallScore() != null ? affinityScore.getOverallScore().intValue() : 0;
 
         // Find appropriate level for the score
         TrustLevel newLevel = trustLevelRepository.findByScore(score)
@@ -196,6 +196,75 @@ public class LevelService {
             .build();
 
         levelHistoryRepository.save(history);
+    }
+
+    // XP thresholds for each level
+    private static final int[] XP_THRESHOLDS = {0, 0, 100, 300, 700, 1500};
+
+    /**
+     * Add experience points and check for level up
+     */
+    @Transactional
+    public void addExperience(Long userId, int amount, String source) {
+        if (amount <= 0) return;
+
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+
+        user.addExperience(amount);
+        int totalXp = user.getExperiencePoints();
+
+        // Calculate level from XP
+        int xpLevel = calculateLevelFromXP(totalXp);
+        int currentLevel = user.getTrustLevel() != null ? user.getTrustLevel() : 1;
+
+        // Only level UP (never down from XP)
+        if (xpLevel > currentLevel && currentLevel <= 5) {
+            recordLevelChange(user, currentLevel, xpLevel, source + " (XP: " + totalXp + ")", "XP_SYSTEM");
+            user.updateTrustLevel(xpLevel);
+
+            notificationService.sendLevelChangeNotification(userId, currentLevel, xpLevel);
+
+            try {
+                levelRewardService.claimLevelReward(userId, xpLevel);
+                log.info("Auto-claimed level {} rewards for user {} via XP", xpLevel, userId);
+            } catch (Exception e) {
+                log.warn("Failed to auto-claim XP level reward: {}", e.getMessage());
+            }
+
+            log.info("User {} leveled up via XP: {} -> {} (XP: {}, Source: {})",
+                userId, currentLevel, xpLevel, totalXp, source);
+        }
+
+        userRepository.save(user);
+    }
+
+    /**
+     * Calculate level from XP amount
+     */
+    public int calculateLevelFromXP(int xp) {
+        for (int level = 5; level >= 2; level--) {
+            if (xp >= XP_THRESHOLDS[level]) {
+                return level;
+            }
+        }
+        return 1;
+    }
+
+    /**
+     * Get XP required for next level
+     */
+    public int getXpForNextLevel(int currentLevel) {
+        if (currentLevel >= 5) return XP_THRESHOLDS[5];
+        return XP_THRESHOLDS[currentLevel + 1];
+    }
+
+    /**
+     * Get XP threshold for current level
+     */
+    public int getXpForCurrentLevel(int currentLevel) {
+        if (currentLevel < 1 || currentLevel > 5) return 0;
+        return XP_THRESHOLDS[currentLevel];
     }
 
     /**

@@ -9,7 +9,8 @@ import type { ScoreBarProps } from '@/types/affinity';
 
 export function ScoreBar({ label, value, maxValue = 1, color, delay = 0 }: ScoreBarProps) {
   const [animated, setAnimated] = useState(false);
-  const percentage = (value / maxValue) * 100;
+  const safeValue = value ?? 0; // null/undefined 방어
+  const percentage = (safeValue / maxValue) * 100;
 
   useEffect(() => {
     const timer = setTimeout(() => setAnimated(true), delay);
@@ -24,7 +25,7 @@ export function ScoreBar({ label, value, maxValue = 1, color, delay = 0 }: Score
           {label}
         </span>
         <span className="text-sm font-bold text-white tabular-nums">
-          {value.toFixed(2)}
+          {safeValue.toFixed(2)}
         </span>
       </div>
 

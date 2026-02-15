@@ -29,7 +29,9 @@ export const ChatPage: React.FC = () => {
     sendMessage,
     sendMessageStream,
     sleepTick,
-    clearMessageHistory
+    clearMessageHistory,
+    checkProactiveMessage,
+    loadTodaysSchedules
   } = useChatStore();
 
   // Local UI state
@@ -59,12 +61,17 @@ export const ChatPage: React.FC = () => {
     }
   }, [stats.hunger, stats.energy, stats.happiness, splineReady, isSleeping, isPlaying, isReacting, characterState, setSplineState]);
 
-  // Load initial data from backend
+  // Load initial data from backend (sequential to avoid auth race conditions)
   useEffect(() => {
-    loadStats();
-    loadMessages();
-    loadPersonas();
-  }, [loadStats, loadMessages, loadPersonas]);
+    const init = async () => {
+      await loadStats();
+      await loadMessages();
+      await loadPersonas();
+      await loadTodaysSchedules();
+      await checkProactiveMessage();
+    };
+    init();
+  }, [loadStats, loadMessages, loadPersonas, loadTodaysSchedules, checkProactiveMessage]);
 
   // Prevent auto-scroll on mount
   useEffect(() => {
@@ -204,19 +211,14 @@ export const ChatPage: React.FC = () => {
     }
   };
 
-  // Handle message send (streaming with fallback)
+  // Handle message send (streaming with auto-fallback built into sendMessageStream)
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isTyping || isStreaming) return;
 
     const content = inputValue;
     setInputValue('');
 
-    try {
-      await sendMessageStream(content);
-    } catch {
-      // Fallback to non-streaming
-      await sendMessage(content);
-    }
+    await sendMessageStream(content);
   };
 
   return (

@@ -17,8 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
  * DataInitializer
  *
  * 애플리케이션 시작 시 초기 데이터 생성
- * - 기존 사용자 전체 삭제
- * - Admin 계정 생성
+ * - Admin 계정 생성 (없을 경우에만)
  */
 @Service
 @RequiredArgsConstructor
@@ -44,18 +43,6 @@ public class DataInitializer implements CommandLineRunner {
         } catch (Exception e) {
             log.error("Failed to initialize data: {}", e.getMessage(), e);
         }
-    }
-
-    /**
-     * 기존 사용자 전체 삭제
-     */
-    private void deleteAllUsers() {
-        log.info("Deleting all existing users...");
-
-        long count = userRepository.count();
-        userRepository.deleteAll();
-
-        log.info("Deleted {} existing users", count);
     }
 
     /**

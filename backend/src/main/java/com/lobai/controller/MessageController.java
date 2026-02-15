@@ -6,6 +6,7 @@ import com.lobai.dto.response.ChatResponse;
 import com.lobai.dto.response.MessageResponse;
 import com.lobai.security.SecurityUtil;
 import com.lobai.service.MessageService;
+import com.lobai.service.ProactiveMessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * MessageController
@@ -27,6 +29,27 @@ import java.util.List;
 public class MessageController {
 
     private final MessageService messageService;
+    private final ProactiveMessageService proactiveMessageService;
+
+    /**
+     * 선제 대화 메시지 조회
+     *
+     * GET /api/messages/proactive
+     * 채팅 페이지 진입 시 호출. 조건 충족 시 AI가 먼저 보내는 메시지 반환.
+     */
+    @GetMapping("/proactive")
+    public ResponseEntity<ApiResponse<MessageResponse>> getProactiveMessage() {
+        Long userId = SecurityUtil.getCurrentUserId();
+        log.info("Proactive message check for user {}", userId);
+
+        Optional<MessageResponse> proactive = proactiveMessageService.generateIfNeeded(userId);
+
+        if (proactive.isPresent()) {
+            return ResponseEntity.ok(ApiResponse.success(proactive.get()));
+        } else {
+            return ResponseEntity.ok(ApiResponse.success("조건 미충족", null));
+        }
+    }
 
     /**
      * 메시지 전송 및 AI 응답 받기

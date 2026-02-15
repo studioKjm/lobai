@@ -327,20 +327,12 @@ export const TrainingPage: React.FC = () => {
               </div>
               <MemoryTrainingInterface
                 session={currentSession}
-                onComplete={() => {
+                onComplete={(updatedSession) => {
+                  setCurrentSession(updatedSession);
+                  setShowResult(true);
                   loadHistory();
                   loadStatistics();
-                  // Reload session to get results
-                  submitAnswer(currentSession.id, '', 0)
-                    .then((result) => {
-                      setCurrentSession(result);
-                      setShowResult(true);
-                      toast.success('훈련이 완료되었습니다!');
-                    })
-                    .catch(() => {
-                      // If submission fails, just show result anyway
-                      setShowResult(true);
-                    });
+                  toast.success('훈련이 완료되었습니다!');
                 }}
               />
             </div>

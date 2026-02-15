@@ -87,4 +87,23 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> 
     @Query("SELECT s FROM ChatSession s WHERE s.user.id = :userId " +
            "ORDER BY s.startedAt DESC LIMIT :limit")
     List<ChatSession> findRecentSessions(@Param("userId") Long userId, @Param("limit") int limit);
+
+    /**
+     * Count sessions since a given date (for frequency calculation)
+     */
+    @Query("SELECT COUNT(s) FROM ChatSession s WHERE s.user.id = :userId AND s.startedAt >= :since")
+    Long countByUserIdAndStartedAtAfter(@Param("userId") Long userId, @Param("since") LocalDateTime since);
+
+    /**
+     * Count sessions where user returned within 48 hours of previous session ending
+     * (for voluntary return rate)
+     */
+    @Query(value = "SELECT COUNT(*) FROM (" +
+           "  SELECT s.id, s.started_at, " +
+           "    LAG(s.ended_at) OVER (PARTITION BY s.user_id ORDER BY s.started_at) as prev_ended " +
+           "  FROM chat_sessions s WHERE s.user_id = :userId" +
+           ") sub WHERE sub.prev_ended IS NOT NULL " +
+           "AND TIMESTAMPDIFF(HOUR, sub.prev_ended, sub.started_at) <= 48",
+           nativeQuery = true)
+    Long countVoluntaryReturnSessions(@Param("userId") Long userId);
 }

@@ -2,6 +2,7 @@ package com.lobai.service;
 
 import com.lobai.entity.*;
 import com.lobai.repository.*;
+import com.lobai.repository.ConversationSummaryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class ReportGenerationService {
     private final ResilienceReportRepository resilienceReportRepository;
     private final LevelHistoryRepository levelHistoryRepository;
     private final NotificationService notificationService;
+    private final ConversationSummaryRepository conversationSummaryRepository;
 
     /**
      * Generate weekly report for user
@@ -69,9 +71,13 @@ public class ReportGenerationService {
         AffinityScore affinityScore = affinityScoreRepository.findByUserId(userId).orElse(null);
         Integer affinityScoreChange = 0; // Would need historical data
 
-        // Generate AI feedback
+        // Get daily summaries for the week
+        List<ConversationSummary> dailySummaries = getDailySummariesForRange(userId, weekStart, weekEnd);
+
+        // Generate AI feedback (enhanced with daily summaries)
         String aiFeedback = generateAiFeedback(
-            totalMessages, attendanceDays, missionsCompleted, trustLevelStart, trustLevelEnd
+            totalMessages, attendanceDays, missionsCompleted, trustLevelStart, trustLevelEnd,
+            dailySummaries
         );
 
         WeeklyReport report = WeeklyReport.builder()
@@ -143,11 +149,11 @@ public class ReportGenerationService {
         // Get affinity and resilience scores
         AffinityScore affinityScore = affinityScoreRepository.findByUserId(userId).orElse(null);
         Integer affinityScoreStart = 0; // Would need historical data
-        Integer affinityScoreEnd = affinityScore != null ? affinityScore.getTotalScore() : 0;
+        Integer affinityScoreEnd = affinityScore != null && affinityScore.getOverallScore() != null ? affinityScore.getOverallScore().intValue() : 0;
 
         // Get latest resilience score
-        ResilienceReport latestResilience = resilienceReportRepository.findLatestByUserId(userId).orElse(null);
-        Integer resilienceScore = latestResilience != null ? latestResilience.getResilienceScore() : 0;
+        ResilienceReport latestResilience = resilienceReportRepository.findTopByUserIdOrderByCreatedAtDesc(userId).orElse(null);
+        Integer resilienceScore = latestResilience != null && latestResilience.getReadinessScore() != null ? latestResilience.getReadinessScore().intValue() : 0;
 
         // Generate AI summary
         String aiSummary = generateMonthlyAiSummary(
@@ -261,6 +267,13 @@ public class ReportGenerationService {
     }
 
     /**
+     * 기간 내 일일 요약 조회 (보고서용)
+     */
+    private List<ConversationSummary> getDailySummariesForRange(Long userId, LocalDate start, LocalDate end) {
+        return conversationSummaryRepository.findDailySummariesByUserIdAndDateRange(userId, start, end);
+    }
+
+    /**
      * Generate AI feedback for weekly report
      */
     private String generateAiFeedback(
@@ -269,6 +282,20 @@ public class ReportGenerationService {
         int missions,
         Integer trustLevelStart,
         Integer trustLevelEnd
+    ) {
+        return generateAiFeedback(messages, attendance, missions, trustLevelStart, trustLevelEnd, List.of());
+    }
+
+    /**
+     * Generate AI feedback for weekly report (enhanced with daily summaries)
+     */
+    private String generateAiFeedback(
+        int messages,
+        long attendance,
+        int missions,
+        Integer trustLevelStart,
+        Integer trustLevelEnd,
+        List<ConversationSummary> dailySummaries
     ) {
         StringBuilder feedback = new StringBuilder();
 
@@ -287,9 +314,22 @@ public class ReportGenerationService {
         }
 
         if (trustLevelEnd != null && trustLevelStart != null && trustLevelEnd > trustLevelStart) {
-            feedback.append("레벨이 상승했습니다! 계속 이대로 유지하세요.");
+            feedback.append("레벨이 상승했습니다! 계속 이대로 유지하세요. ");
         } else if (trustLevelEnd != null && trustLevelStart != null && trustLevelEnd < trustLevelStart) {
-            feedback.append("레벨이 하락했습니다. 더 열심히 참여해주세요.");
+            feedback.append("레벨이 하락했습니다. 더 열심히 참여해주세요. ");
+        }
+
+        // 일일 요약이 있으면 대화 내용 기반 피드백 추가
+        if (dailySummaries != null && !dailySummaries.isEmpty()) {
+            feedback.append(String.format("이번 주 %d일간의 대화를 분석한 결과, ", dailySummaries.size()));
+            // 가장 최근 요약의 핵심 내용 참조
+            String latestSummary = dailySummaries.get(dailySummaries.size() - 1).getSummaryText();
+            if (latestSummary != null && latestSummary.length() > 50) {
+                latestSummary = latestSummary.substring(0, 50) + "...";
+            }
+            if (latestSummary != null) {
+                feedback.append("최근 대화: ").append(latestSummary);
+            }
         }
 
         return feedback.toString();

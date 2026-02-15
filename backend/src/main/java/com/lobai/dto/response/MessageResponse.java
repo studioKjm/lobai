@@ -24,6 +24,7 @@ public class MessageResponse {
     private String content;    // 메시지 내용
     private Long personaId;    // 페르소나 ID
     private String personaName; // 페르소나 이름
+    private String messageType; // "NORMAL" or "PROACTIVE"
     private LocalDateTime createdAt;
 
     /**
@@ -36,6 +37,7 @@ public class MessageResponse {
                 .content(message.getContent())
                 .personaId(message.getPersona().getId())
                 .personaName(message.getPersona().getDisplayName())
+                .messageType(message.getMessageType() != null ? message.getMessageType() : "NORMAL")
                 .createdAt(message.getCreatedAt())
                 .build();
     }

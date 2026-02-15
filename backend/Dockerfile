@@ -43,6 +43,9 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:8080/actuator/health || exit 1
 
+# Set timezone to Asia/Seoul
+ENV TZ=Asia/Seoul
+
 # Run application with optimized JVM settings
 ENTRYPOINT ["java", \
   "-Xms256m", \
@@ -52,6 +55,7 @@ ENTRYPOINT ["java", \
   "-XX:+UseStringDeduplication", \
   "-XX:+OptimizeStringConcat", \
   "-Djava.security.egd=file:/dev/./urandom", \
+  "-Duser.timezone=Asia/Seoul", \
   "-Dspring.profiles.active=docker", \
   "-jar", \
   "app.jar"]

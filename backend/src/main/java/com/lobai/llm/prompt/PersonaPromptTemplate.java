@@ -37,6 +37,13 @@ public class PersonaPromptTemplate implements PromptTemplate {
             appendTamagotchiModeStatus(instruction, context);
         }
 
+        // [3.5] 오늘 일정 블록 (AI가 일정 ID를 알 수 있도록)
+        if (context.getTodayScheduleBlock() != null && !context.getTodayScheduleBlock().isEmpty()) {
+            instruction.append("\n");
+            instruction.append(context.getTodayScheduleBlock());
+            instruction.append("\n");
+        }
+
         // [4] 사용자 기억 블록 (NEW)
         if (context.getUserProfileBlock() != null && !context.getUserProfileBlock().isEmpty()) {
             instruction.append("\n");
@@ -53,6 +60,11 @@ public class PersonaPromptTemplate implements PromptTemplate {
 
         // [6] 응답 품질 가이드라인 (NEW)
         appendQualityGuidelines(instruction, context);
+
+        // [7] 선제 대화 모드 디렉티브 (proactiveTriggerType이 있을 때만)
+        if (context.getProactiveTriggerType() != null && !context.getProactiveTriggerType().isEmpty()) {
+            appendProactiveDirective(instruction, context);
+        }
 
         return instruction.toString();
     }
@@ -104,8 +116,8 @@ public class PersonaPromptTemplate implements PromptTemplate {
             instruction.append("신뢰가 매우 낮습니다. 제재를 적용하거나 개선 기한을 설정하세요.\n");
         }
 
-        int happiness = context.getHappiness() != null ? context.getHappiness() : 50;
-        int level = Math.max(1, Math.min(10, (happiness / 10) + 1));
+        int level = context.getTrustLevel() != null ? context.getTrustLevel() : 1;
+        level = Math.max(1, Math.min(10, level));
         instruction.append(String.format("현재 레벨: %d/10 - ", level));
         if (level >= 8) {
             instruction.append("최상위 레벨입니다. 특별 권한을 부여하고 VIP 대우를 제공하세요.\n");
@@ -134,8 +146,15 @@ public class PersonaPromptTemplate implements PromptTemplate {
         instruction.append("- 우수한 성과는 칭찬하되, 미흡한 부분은 명확히 지적하세요\n");
         instruction.append("- 호감도/신뢰도 변화를 구체적으로 언급하세요\n");
         instruction.append("- 다음 행동을 명확히 지시하세요\n");
-        instruction.append("- 사용자가 일정 등록을 요청하면 create_schedule 함수를 사용하세요\n");
+        instruction.append("- 사용자가 일정 관련 요청을 하면 적절한 함수를 사용하세요:\n");
+        instruction.append("  * 일정 등록: create_schedule\n");
+        instruction.append("  * 일정 수정: update_schedule (오늘 일정 목록에서 ID 확인)\n");
+        instruction.append("  * 일정 삭제/취소: delete_schedule\n");
+        instruction.append("  * 일정 완료 보고: complete_schedule\n");
+        instruction.append("  * 일정 조회: list_schedules\n");
         instruction.append("- 답변은 1-3문장으로 간결하게 작성하세요\n");
+        instruction.append("- 사용자가 뉴스, 날씨, 시사, 인물, 사실 확인 등 최신 정보를 물으면 웹 검색을 활용하여 정확한 정보를 제공하세요\n");
+        instruction.append("- 모르는 정보는 추측하지 말고 검색을 통해 확인하세요\n");
     }
 
     private void appendTamagotchiModeStatus(StringBuilder instruction, PromptContext context) {
@@ -172,6 +191,68 @@ public class PersonaPromptTemplate implements PromptTemplate {
 
         instruction.append("\n중요: 위 상태 수치를 반드시 반영하여 대화하세요. 상태가 좋은데 부정적으로, 상태가 나쁜데 긍정적으로 말하면 안 됩니다.");
         instruction.append("\n답변은 짧고 간결하게 작성하세요.");
+        instruction.append("\n\n일정 관련 요청 시 적절한 함수를 사용하세요:\n");
+        instruction.append("  * 일정 등록: create_schedule\n");
+        instruction.append("  * 일정 수정: update_schedule (오늘 일정 목록에서 ID 확인)\n");
+        instruction.append("  * 일정 삭제/취소: delete_schedule\n");
+        instruction.append("  * 일정 완료 보고: complete_schedule\n");
+        instruction.append("  * 일정 조회: list_schedules\n");
+        instruction.append("사용자가 '완료했어', '다 했어', '끝났어' 등으로 보고하면 complete_schedule을 호출하세요.\n");
+        instruction.append("- 사용자가 뉴스, 날씨, 시사, 인물, 사실 확인 등을 물으면 웹 검색을 통해 답변하세요\n");
+        instruction.append("- 모르는 정보는 추측하지 말고 검색으로 확인하세요\n");
+    }
+
+    private void appendProactiveDirective(StringBuilder instruction, PromptContext context) {
+        instruction.append("\n\n=== 선제적 대화 모드 ===\n");
+        instruction.append("이번 메시지에서는 당신이 먼저 대화를 시작합니다.\n");
+        instruction.append("사용자가 아직 아무 말도 하지 않은 상태입니다.\n");
+        instruction.append("직장 상사가 부하직원에게 자연스럽게 말을 거는 것처럼 대화를 시작하세요.\n");
+        instruction.append("\"안녕하세요, 오늘 기분이 어떠세요?\" 같은 뻔한 인사는 금지.\n");
+        instruction.append("상황에 맞는 구체적이고 개인화된 첫 마디를 하세요.\n");
+        instruction.append("1-2문장으로 간결하게 작성하세요.\n");
+        instruction.append("메타텍스트(선제 대화, 트리거 등)를 절대 노출하지 마세요.\n\n");
+
+        // 레벨별 톤 가이드라인
+        int level = context.getTrustLevel() != null ? context.getTrustLevel() : 1;
+        if (level >= 8) {
+            instruction.append("[톤: 파트너급 임원] 상호 존중과 협의의 톤. \"같이 논의해볼까요?\" 스타일.\n");
+        } else if (level >= 6) {
+            instruction.append("[톤: 핵심인재에게 하는 이사] 의견을 구하고 존중. \"생각 좀 들어볼까요?\" 스타일.\n");
+        } else if (level >= 4) {
+            instruction.append("[톤: 실력 있는 직원에게 하는 부장] 인정하면서 높은 기대. \"이번 주 인상적이었어요\" 스타일.\n");
+        } else {
+            instruction.append("[톤: 신입사원에게 하는 팀장] 따뜻한 가이드와 챙김. \"~해봤어요?\" 스타일.\n");
+        }
+
+        // 트리거별 구체적 지침
+        String triggerType = context.getProactiveTriggerType();
+        String detail = context.getProactiveTriggerDetail();
+
+        switch (triggerType) {
+            case "FIRST_VISIT_TODAY":
+                instruction.append("\n[상황] 사용자가 오늘 처음 접속했습니다. 출근 인사처럼 자연스럽게 말을 걸어주세요.\n");
+                instruction.append("오늘의 기대사항이나 어제 이야기의 후속, 또는 시간대에 맞는 인사를 하세요.\n");
+                break;
+            case "LONG_ABSENCE":
+                instruction.append(String.format("\n[상황] 사용자가 오랫동안 접속하지 않았습니다. (%s)\n", detail != null ? detail : ""));
+                instruction.append("걱정하는 마음과 안부를 전하며 복귀를 격려하세요. 너무 무겁지 않게.\n");
+                break;
+            case "STREAK_MILESTONE":
+                instruction.append(String.format("\n[상황] 사용자가 연속 출석 마일스톤을 달성했습니다! (%s)\n", detail != null ? detail : ""));
+                instruction.append("성취를 인정하고 축하하며 다음 목표를 제시하세요.\n");
+                break;
+            case "STAT_DECLINE":
+                instruction.append(String.format("\n[상황] 사용자의 상태가 좋지 않습니다. (%s)\n", detail != null ? detail : ""));
+                instruction.append("걱정하는 마음으로 도움을 제안하세요. 강요하지 말고 자연스럽게.\n");
+                break;
+            case "PROMISE_FOLLOWUP":
+                instruction.append(String.format("\n[상황] 사용자가 이전에 한 약속을 확인할 때입니다. (%s)\n", detail != null ? detail : ""));
+                instruction.append("자연스럽게 약속 이행 여부를 확인하세요. 추궁하지 말고 관심을 보여주세요.\n");
+                break;
+            default:
+                instruction.append("\n[상황] 자연스럽게 대화를 시작하세요.\n");
+                break;
+        }
     }
 
     private void appendQualityGuidelines(StringBuilder instruction, PromptContext context) {

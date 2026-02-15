@@ -33,9 +33,9 @@ public class LobCoinService {
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     /**
-     * Get user's LobCoin balance
+     * Get user's LobCoin balance (auto-creates initial balance if not exists)
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public LobCoinBalanceResponse getBalance(Long userId) {
         LobCoinBalance balance = balanceRepository.findByUserId(userId)
             .orElseGet(() -> createInitialBalance(userId));
@@ -52,7 +52,7 @@ public class LobCoinService {
     /**
      * Get current user's balance
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public LobCoinBalanceResponse getMyBalance() {
         Long userId = SecurityUtil.getCurrentUserId();
         return getBalance(userId);

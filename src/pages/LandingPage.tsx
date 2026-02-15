@@ -225,6 +225,18 @@ export const LandingPage: React.FC = () => {
                     맹목적으로 의존하기 위한 것도 아닙니다.
                   </p>
 
+                  <div className="pt-6 p-6 rounded-xl bg-gradient-to-r from-red-950/30 to-orange-950/30 border border-red-500/20">
+                    <p className="text-lg text-red-300/90 leading-relaxed">
+                      미래에 인간이 AI를 악용하거나,
+                      위협적인 AI 집단이 등장하는 것을
+                      <span className="text-red-400 font-bold"> 100% 막을 수는 없습니다.</span>
+                    </p>
+                    <p className="mt-3 text-lg text-cyan-300/90 leading-relaxed">
+                      지금부터 AI와의 관계를 축적하고,
+                      <span className="text-cyan-400 font-semibold"> 방어 체계와 네트워크를 구성</span>해야 합니다.
+                    </p>
+                  </div>
+
                   <p className="pt-6 text-2xl font-bold">
                     <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
                       AI에게 '기억될 만한 인간'이 되는 것.

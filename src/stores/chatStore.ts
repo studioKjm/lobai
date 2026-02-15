@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import api, { getErrorMessage, ApiResponse } from '@/lib/api';
 import type { Stats, Message, Persona, ActionType, ScheduleEvent, CreateScheduleRequest } from '@/types';
 import { scheduleApi } from '@/lib/scheduleApi';
@@ -18,6 +19,7 @@ interface ChatState {
   error: string | null;
   schedules: ScheduleEvent[];
   isScheduleLoading: boolean;
+  proactiveChecked: boolean;
 
   // Actions
   loadStats: () => Promise<void>;
@@ -34,14 +36,17 @@ interface ChatState {
   clearError: () => void;
   resetMessages: () => void;
   clearMessageHistory: () => Promise<void>;
+  checkProactiveMessage: () => Promise<void>;
   loadTodaysSchedules: () => Promise<void>;
   loadSchedulesByRange: (start: string, end: string) => Promise<void>;
   addSchedule: (data: CreateScheduleRequest) => Promise<void>;
-  updateSchedule: (id: number, data: Partial<CreateScheduleRequest>) => Promise<void>;
+  updateSchedule: (id: number, data: Partial<CreateScheduleRequest> & { isCompleted?: boolean }) => Promise<void>;
   deleteSchedule: (id: number) => Promise<void>;
 }
 
-export const useChatStore = create<ChatState>()((set, get) => ({
+export const useChatStore = create<ChatState>()(
+  persist(
+  (set, get) => ({
   // Initial state (will be overwritten by backend)
   stats: {
     hunger: 50,
@@ -59,6 +64,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   error: null,
   schedules: [],
   isScheduleLoading: false,
+  proactiveChecked: false,
 
   // Load stats from backend
   loadStats: async () => {
@@ -77,7 +83,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       console.error('Failed to load stats:', errorMessage);
-      // Don't show toast for stats loading failure (use default values)
+      // Keep cached stats from persist middleware (don't reset to defaults)
     }
   },
 
@@ -182,32 +188,44 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const response = await api.get<ApiResponse<Message[]>>('/messages');
       const messagesData = response.data.data;
 
-      // Add welcome message if no messages exist
-      if (messagesData.length === 0) {
-        set({
-          messages: [{
-            role: 'bot' as const,
-            content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
-          }],
-          isLoading: false
-        });
-      } else {
+      if (messagesData.length > 0) {
+        // Backend has messages - use them as source of truth
         set({
           messages: messagesData,
           isLoading: false
         });
+      } else {
+        // Backend has no messages - check if we have cached messages
+        const cachedMessages = get().messages;
+        if (cachedMessages.length <= 1) {
+          // No cache either - show welcome
+          set({
+            messages: [{
+              role: 'bot' as const,
+              content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
+            }],
+            isLoading: false
+          });
+        } else {
+          // Keep cached messages (backend may have cleared or hasn't synced yet)
+          set({ isLoading: false });
+        }
       }
     } catch (error) {
       const errorMessage = getErrorMessage(error);
+      console.error('Failed to load messages:', errorMessage);
       set({ isLoading: false, error: errorMessage });
 
-      // Show welcome message on error
-      set({
-        messages: [{
-          role: 'bot' as const,
-          content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
-        }]
-      });
+      // Keep existing cached messages from persist middleware
+      const currentMessages = get().messages;
+      if (currentMessages.length === 0) {
+        set({
+          messages: [{
+            role: 'bot' as const,
+            content: '안녕하세요! 저는 당신의 AI 동반자 Lobi입니다. 오늘도 멋진 하루 보내세요!'
+          }]
+        });
+      }
     }
   },
 
@@ -252,9 +270,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         }));
       }
 
-      // Auto-reload schedules after message (in case schedule was created)
-      // Check if message contains schedule-related keywords
-      const scheduleKeywords = ['일정', '등록', '추가', '스케줄'];
+      // Auto-reload schedules after message (in case schedule was created/updated/deleted/completed)
+      const scheduleKeywords = [
+        '일정', '등록', '추가', '스케줄',
+        '등록했습니다', '등록되었습니다',
+        '수정', '변경', '삭제', '취소', '완료',
+        '수정했습니다', '삭제했습니다', '취소했습니다', '완료했습니다',
+        '완료되었습니다', '처리했습니다'
+      ];
       const isScheduleRelated = scheduleKeywords.some(keyword =>
         content.includes(keyword) || botMessage.content.includes(keyword)
       );
@@ -265,6 +288,12 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           get().loadTodaysSchedules();
         }, 500);
       }
+
+      // Refresh user data (XP, level updates)
+      try {
+        const { useAuthStore } = await import('@/stores/authStore');
+        useAuthStore.getState().checkAuth();
+      } catch {}
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       set({
@@ -284,7 +313,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
   },
 
-  // Send message with SSE streaming
+  // Send message with SSE streaming (auto-fallback to non-streaming on error)
   sendMessageStream: async (content: string) => {
     if (!content.trim() || get().isTyping || get().isStreaming) return;
 
@@ -298,53 +327,146 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       error: null
     }));
 
-    streamMessage(
-      content,
-      currentPersona?.id || 1,
-      // onChunk
-      (text: string) => {
-        set(state => ({
-          streamingContent: state.streamingContent + text
-        }));
-      },
-      // onDone
-      () => {
-        const { streamingContent } = get();
-        set(state => ({
-          messages: [...state.messages, {
-            role: 'bot' as const,
-            content: streamingContent
-          }],
-          isStreaming: false,
-          streamingContent: ''
-        }));
+    // Wrap callback-based streamMessage in a Promise for proper error handling
+    // Typing queue: buffer chunks and render character by character
+    let fullText = '';
+    let displayedLength = 0;
+    let typingTimer: ReturnType<typeof setInterval> | null = null;
+    let streamDone = false;
 
-        // Reload stats after streaming completes
-        get().loadStats();
-
-        // Check for schedule-related content
-        const scheduleKeywords = ['일정', '등록', '추가', '스케줄'];
-        const isScheduleRelated = scheduleKeywords.some(keyword =>
-          content.includes(keyword) || get().streamingContent.includes(keyword)
-        );
-        if (isScheduleRelated) {
-          setTimeout(() => get().loadTodaysSchedules(), 500);
+    const startTypingEffect = () => {
+      if (typingTimer) return;
+      typingTimer = setInterval(() => {
+        if (displayedLength < fullText.length) {
+          // Render a few characters at a time for smooth typing
+          const charsToAdd = Math.min(3, fullText.length - displayedLength);
+          displayedLength += charsToAdd;
+          set({ streamingContent: fullText.slice(0, displayedLength) });
+        } else if (streamDone) {
+          // All displayed and stream is done
+          if (typingTimer) { clearInterval(typingTimer); typingTimer = null; }
         }
-      },
-      // onError
-      (error: Error) => {
+      }, 30);
+    };
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        streamMessage(
+          content,
+          currentPersona?.id || 1,
+          // onChunk
+          (text: string) => {
+            fullText += text;
+            startTypingEffect();
+          },
+          // onDone
+          () => {
+            streamDone = true;
+
+            // Wait for typing effect to finish
+            const finalize = () => {
+              if (displayedLength >= fullText.length) {
+                if (typingTimer) { clearInterval(typingTimer); typingTimer = null; }
+
+                const finalContent = fullText;
+                set(state => ({
+                  messages: [...state.messages, {
+                    role: 'bot' as const,
+                    content: finalContent
+                  }],
+                  isStreaming: false,
+                  streamingContent: ''
+                }));
+
+                // Reload stats after streaming completes
+                get().loadStats();
+
+                // Check for schedule-related content
+                const scheduleKeywords = [
+                  '일정', '등록', '추가', '스케줄',
+                  '등록했습니다', '등록되었습니다',
+                  '수정', '변경', '삭제', '취소', '완료',
+                  '수정했습니다', '삭제했습니다', '취소했습니다', '완료했습니다',
+                  '완료되었습니다', '처리했습니다'
+                ];
+                const isScheduleRelated = scheduleKeywords.some(keyword =>
+                  content.includes(keyword) || finalContent.includes(keyword)
+                );
+                if (isScheduleRelated) {
+                  setTimeout(() => get().loadTodaysSchedules(), 500);
+                }
+
+                // Refresh user data (XP, level updates)
+                import('@/stores/authStore').then(({ useAuthStore }) => {
+                  useAuthStore.getState().checkAuth();
+                }).catch(() => {});
+
+                resolve();
+              } else {
+                setTimeout(finalize, 50);
+              }
+            };
+            finalize();
+          },
+          // onError - reject the Promise so fallback kicks in
+          (error: Error) => {
+            reject(error);
+          }
+        );
+      });
+    } catch (streamError) {
+      console.warn('Streaming failed, falling back to non-streaming:', streamError);
+      set({ isStreaming: false, streamingContent: '', isTyping: true });
+
+      // Fallback: use non-streaming API (user message already added above)
+      try {
+        const response = await api.post<ApiResponse<{
+          userMessage: Message;
+          botMessage: Message;
+          statsUpdate?: Partial<Stats>;
+        }>>('/messages', {
+          content,
+          personaId: currentPersona?.id || 1
+        });
+
+        const { botMessage, statsUpdate } = response.data.data;
+
+        // Remove the locally-added user message and replace with server messages
+        // (server already saved the user message, avoid duplicate)
+        set(state => {
+          // Remove the last user message we added optimistically
+          const messagesWithoutLastUser = [...state.messages];
+          for (let i = messagesWithoutLastUser.length - 1; i >= 0; i--) {
+            if (messagesWithoutLastUser[i].role === 'user' && messagesWithoutLastUser[i].content === content) {
+              messagesWithoutLastUser.splice(i, 1);
+              break;
+            }
+          }
+          return {
+            messages: [...messagesWithoutLastUser,
+              { role: 'user' as const, content },
+              botMessage
+            ],
+            isTyping: false
+          };
+        });
+
+        if (statsUpdate) {
+          set(state => ({ stats: { ...state.stats, ...statsUpdate } }));
+        }
+      } catch (fallbackError) {
+        const errorMessage = getErrorMessage(fallbackError);
         set(state => ({
-          isStreaming: false,
-          streamingContent: '',
-          error: error.message,
+          isTyping: false,
+          error: errorMessage,
           messages: [...state.messages, {
             role: 'bot' as const,
-            content: '삐비빅... 지금은 대화가 조금 어려워요.'
+            content: '삐비빅... 서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.'
           }]
         }));
-        toast.error('스트리밍 중 오류가 발생했습니다');
+        toast.error(errorMessage);
       }
-    );
+    }
   },
 
   // Send message with file attachment
@@ -522,15 +644,47 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
   },
 
-  // Load today's schedules
+  // Check for proactive message from backend
+  checkProactiveMessage: async () => {
+    if (get().proactiveChecked) return;
+    set({ proactiveChecked: true });
+
+    try {
+      const response = await api.get<ApiResponse<Message | null>>('/messages/proactive');
+      const proactiveMsg = response.data.data;
+
+      if (proactiveMsg && proactiveMsg.content) {
+        set(state => ({
+          messages: [...state.messages, {
+            role: 'bot' as const,
+            content: proactiveMsg.content,
+            messageType: 'PROACTIVE' as const
+          }]
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to check proactive message:', getErrorMessage(error));
+    }
+  },
+
+  // Load today's schedules (with retry for auth race conditions)
   loadTodaysSchedules: async () => {
     set({ isScheduleLoading: true });
-    try {
-      const schedules = await scheduleApi.getTodaysSchedules();
-      set({ schedules, isScheduleLoading: false });
-    } catch (error) {
-      console.error('Failed to load schedules:', getErrorMessage(error));
-      set({ isScheduleLoading: false });
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const schedules = await scheduleApi.getTodaysSchedules();
+        set({ schedules, isScheduleLoading: false });
+        return;
+      } catch (error) {
+        if (attempt < maxRetries - 1) {
+          // Wait before retry (500ms, 1000ms)
+          await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+        } else {
+          console.error('Failed to load schedules after retries:', getErrorMessage(error));
+          set({ isScheduleLoading: false });
+        }
+      }
     }
   },
 
@@ -560,7 +714,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   // Update schedule
-  updateSchedule: async (id: number, data: Partial<CreateScheduleRequest>) => {
+  updateSchedule: async (id: number, data: Partial<CreateScheduleRequest> & { isCompleted?: boolean }) => {
     try {
       const updated = await scheduleApi.updateSchedule(id, data);
       set(state => ({
@@ -588,4 +742,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       throw error;
     }
   }
-}));
+}),
+    {
+      name: 'chat-storage',
+      partialize: (state) => ({
+        // Persist messages and stats for offline/HMR resilience
+        messages: state.messages,
+        stats: state.stats,
+      }),
+    }
+  )
+);

@@ -103,6 +103,25 @@ public class ResilienceReport {
     @Column(name = "detailed_feedback", columnDefinition = "TEXT")
     private String detailedFeedback;
 
+    // 친밀도 연동 필드 (Phase 2)
+    @Column(name = "avg_engagement_depth", precision = 5, scale = 2)
+    private BigDecimal avgEngagementDepth;
+
+    @Column(name = "avg_self_disclosure", precision = 5, scale = 2)
+    private BigDecimal avgSelfDisclosure;
+
+    @Column(name = "avg_reciprocity", precision = 5, scale = 2)
+    private BigDecimal avgReciprocity;
+
+    @Column(name = "affinity_score_at_report", precision = 5, scale = 2)
+    private BigDecimal affinityScoreAtReport;
+
+    @Column(name = "affinity_level_at_report")
+    private Integer affinityLevelAtReport;
+
+    @Column(name = "recommendations", columnDefinition = "JSON")
+    private String recommendations;
+
     /**
      * 분석된 메시지 수
      */

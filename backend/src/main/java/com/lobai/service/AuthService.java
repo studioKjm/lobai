@@ -246,6 +246,7 @@ public class AuthService {
                 .currentHappiness(user.getCurrentHappiness())
                 .currentPersonaId(user.getCurrentPersona() != null ? user.getCurrentPersona().getId() : null)
                 .trustLevel(user.getTrustLevel() != null ? user.getTrustLevel() : 1)
+                .experiencePoints(user.getExperiencePoints() != null ? user.getExperiencePoints() : 0)
                 .build();
     }
 }

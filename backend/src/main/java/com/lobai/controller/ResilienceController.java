@@ -160,6 +160,14 @@ public class ResilienceController {
         private String simulationResult;
         private String detailedFeedback;
 
+        // 친밀도 연동 필드
+        private BigDecimal avgEngagementDepth;
+        private BigDecimal avgSelfDisclosure;
+        private BigDecimal avgReciprocity;
+        private BigDecimal affinityScoreAtReport;
+        private Integer affinityLevelAtReport;
+        private List<String> recommendations;
+
         private Integer analyzedMessageCount;
         private Integer analyzedPeriodDays;
 
@@ -169,6 +177,7 @@ public class ResilienceController {
         public static ResilienceReportResponse from(ResilienceReport report, ObjectMapper mapper) {
             List<String> strengths = null;
             List<String> weaknesses = null;
+            List<String> recommendations = null;
 
             try {
                 if (report.getStrengths() != null) {
@@ -176,6 +185,9 @@ public class ResilienceController {
                 }
                 if (report.getWeaknesses() != null) {
                     weaknesses = mapper.readValue(report.getWeaknesses(), new TypeReference<>() {});
+                }
+                if (report.getRecommendations() != null) {
+                    recommendations = mapper.readValue(report.getRecommendations(), new TypeReference<>() {});
                 }
             } catch (Exception e) {
                 log.error("JSON 파싱 실패", e);
@@ -196,6 +208,13 @@ public class ResilienceController {
                     .weaknesses(weaknesses)
                     .simulationResult(report.getSimulationResult())
                     .detailedFeedback(report.getDetailedFeedback())
+                    // 친밀도 연동
+                    .avgEngagementDepth(report.getAvgEngagementDepth())
+                    .avgSelfDisclosure(report.getAvgSelfDisclosure())
+                    .avgReciprocity(report.getAvgReciprocity())
+                    .affinityScoreAtReport(report.getAffinityScoreAtReport())
+                    .affinityLevelAtReport(report.getAffinityLevelAtReport())
+                    .recommendations(recommendations)
                     .analyzedMessageCount(report.getAnalyzedMessageCount())
                     .analyzedPeriodDays(report.getAnalyzedPeriodDays())
                     .isUnlocked(report.getIsUnlocked())

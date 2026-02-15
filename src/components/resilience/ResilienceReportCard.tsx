@@ -1,6 +1,6 @@
 /**
  * ResilienceReportCard Component
- * AI 적응력 리포트 카드
+ * AI 적응력 리포트 카드 (Phase 2 - 친밀도 연동 + 추천)
  */
 
 import { useEffect, useState } from 'react';
@@ -54,7 +54,6 @@ export function ResilienceReportCard() {
     );
   }
 
-  // No report yet - show generation prompt
   if (!report) {
     return (
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900/90 via-cyan-900/50 to-blue-900/90 backdrop-blur-xl border border-white/10 shadow-2xl">
@@ -98,14 +97,13 @@ export function ResilienceReportCard() {
     );
   }
 
-  // Report exists - show full card
   const getLevelColor = (level: number) => {
     switch (level) {
-      case 1: return { from: '#64748b', to: '#475569' }; // slate
-      case 2: return { from: '#3b82f6', to: '#06b6d4' }; // blue to cyan
-      case 3: return { from: '#a855f7', to: '#ec4899' }; // purple to pink
-      case 4: return { from: '#8b5cf6', to: '#d946ef' }; // violet to fuchsia
-      case 5: return { from: '#f59e0b', to: '#f43f5e' }; // amber to rose
+      case 1: return { from: '#64748b', to: '#475569' };
+      case 2: return { from: '#3b82f6', to: '#06b6d4' };
+      case 3: return { from: '#a855f7', to: '#ec4899' };
+      case 4: return { from: '#8b5cf6', to: '#d946ef' };
+      case 5: return { from: '#f59e0b', to: '#f43f5e' };
       default: return { from: '#a855f7', to: '#ec4899' };
     }
   };
@@ -134,7 +132,6 @@ export function ResilienceReportCard() {
             </p>
           </div>
 
-          {/* Regenerate button */}
           <button
             onClick={handleGenerate}
             disabled={generating}
@@ -176,30 +173,33 @@ export function ResilienceReportCard() {
           </div>
         </div>
 
+        {/* Affinity Integration Section */}
+        {report.affinityScoreAtReport != null && (
+          <div className="mb-6 p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+            <h4 className="text-sm font-semibold text-purple-300 mb-3 flex items-center gap-1">
+              <span>💜</span> 친밀도 연동
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <MiniStat label="친밀도" value={`${Math.round(report.affinityScoreAtReport)}`} sub={`Lv.${report.affinityLevelAtReport}`} color="#a855f7" />
+              {report.avgEngagementDepth != null && (
+                <MiniStat label="참여 깊이" value={report.avgEngagementDepth.toFixed(2)} color="#10b981" />
+              )}
+              {report.avgSelfDisclosure != null && (
+                <MiniStat label="자기 개방도" value={report.avgSelfDisclosure.toFixed(2)} color="#f59e0b" />
+              )}
+              {report.avgReciprocity != null && (
+                <MiniStat label="상호작용" value={report.avgReciprocity.toFixed(2)} color="#ef4444" />
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 4 Scores Grid */}
         <div className="grid md:grid-cols-2 gap-4 mb-6">
-          <ScoreItem
-            label="AI 친화 커뮤니케이션"
-            score={report.communicationScore}
-            color="#3b82f6"
-          />
-          <ScoreItem
-            label="AI 협업 적합도"
-            score={report.collaborationScore}
-            color="#8b5cf6"
-          />
-          <ScoreItem
-            label="자동화 위험도"
-            score={report.automationRiskScore}
-            color="#f59e0b"
-            inverted
-          />
-          <ScoreItem
-            label="AI 오용 가능성"
-            score={report.misuseRiskScore}
-            color="#ef4444"
-            inverted
-          />
+          <ScoreItem label="AI 친화 커뮤니케이션" score={report.communicationScore} color="#3b82f6" />
+          <ScoreItem label="AI 협업 적합도" score={report.collaborationScore} color="#8b5cf6" />
+          <ScoreItem label="자동화 위험도" score={report.automationRiskScore} color="#f59e0b" inverted />
+          <ScoreItem label="AI 오용 가능성" score={report.misuseRiskScore} color="#ef4444" inverted />
         </div>
 
         {/* Strengths & Weaknesses */}
@@ -235,6 +235,25 @@ export function ResilienceReportCard() {
                 </ul>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Recommendations Section */}
+        {report.recommendations && report.recommendations.length > 0 && (
+          <div className="mb-6 bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-cyan-400 mb-3 flex items-center gap-1">
+              <span>📋</span> 추천 행동
+            </h4>
+            <ul className="space-y-2">
+              {report.recommendations.map((rec, idx) => (
+                <li key={idx} className="flex items-start gap-3 text-xs text-slate-300">
+                  <span className="flex-shrink-0 w-5 h-5 mt-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 flex items-center justify-center text-cyan-400 text-[10px]">
+                    {idx + 1}
+                  </span>
+                  <span>{rec}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -276,15 +295,29 @@ function ScoreItem({ label, score, color, inverted }: ScoreItemProps) {
       <div className="h-2 bg-white/10 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-1000 ease-out"
-          style={{
-            width: `${percentage}%`,
-            backgroundColor: color,
-          }}
+          style={{ width: `${percentage}%`, backgroundColor: color }}
         />
       </div>
       {inverted && (
         <p className="text-xs text-slate-500 mt-1">낮을수록 안전</p>
       )}
+    </div>
+  );
+}
+
+interface MiniStatProps {
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+}
+
+function MiniStat({ label, value, sub, color }: MiniStatProps) {
+  return (
+    <div className="text-center p-2 rounded-lg bg-white/5">
+      <div className="text-lg font-bold" style={{ color }}>{value}</div>
+      {sub && <div className="text-[10px] text-slate-400">{sub}</div>}
+      <div className="text-[10px] text-slate-500 mt-0.5">{label}</div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -59,6 +60,9 @@ public class ConversationSummary {
     @Column(name = "llm_provider", length = 50)
     private String llmProvider;
 
+    @Column(name = "summary_date")
+    private LocalDate summaryDate;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -68,6 +72,6 @@ public class ConversationSummary {
     }
 
     public enum SummaryType {
-        SESSION, PERIODIC, MANUAL
+        SESSION, PERIODIC, MANUAL, DAILY
     }
 }

@@ -227,36 +227,28 @@ public class UserAdminService {
     }
 
     /**
-     * 사용자 레벨(행복도) 조정
+     * 사용자 레벨(trustLevel) 조정
      *
      * @param id      사용자 ID
-     * @param request 레벨 조정 요청
+     * @param request 레벨 조정 요청 (level: 1-10)
      * @return 변경된 사용자 정보
      */
     @Transactional
     public UserResponse adjustUserLevel(Long id, AdjustLevelRequest request) {
-        // Validation
-        if (request.getLevel() < 0 || request.getLevel() > 100) {
-            throw new IllegalArgumentException("레벨은 0-100 범위여야 합니다");
+        int newLevel = request.getLevel();
+        // Validation: trustLevel은 1-10 범위
+        if (newLevel < 1 || newLevel > 10) {
+            throw new IllegalArgumentException("레벨은 1-10 범위여야 합니다");
         }
 
         // Get user
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + id));
 
-        // 본인의 레벨은 변경할 수 없음
-        Long currentUserId = SecurityUtil.getCurrentUserId();
-        if (currentUserId.equals(id)) {
-            throw new IllegalStateException("자신의 레벨을 변경할 수 없습니다");
-        }
+        int previousLevel = user.getTrustLevel() != null ? user.getTrustLevel() : 1;
 
-        // Track level change for rewards
-        int previousHappiness = user.getCurrentHappiness();
-        int previousLevel = Math.max(1, Math.min(10, (previousHappiness / 10) + 1));
-        int newLevel = Math.max(1, Math.min(10, (request.getLevel() / 10) + 1));
-
-        // Update happiness (level)
-        user.updateStats(null, null, request.getLevel());
+        // Update trustLevel directly
+        user.updateTrustLevel(newLevel);
         User savedUser = userRepository.save(user);
 
         // Give level-up rewards if level increased
@@ -273,8 +265,8 @@ public class UserAdminService {
             }
         }
 
-        log.info("User level adjusted: {} -> {} (reason: {})",
-                user.getEmail(), request.getLevel(), request.getReason());
+        log.info("User trustLevel adjusted: {} -> {} (reason: {})",
+                user.getEmail(), newLevel, request.getReason());
 
         return toUserResponse(savedUser);
     }
@@ -302,6 +294,8 @@ public class UserAdminService {
                 .currentEnergy(user.getCurrentEnergy())
                 .currentHappiness(user.getCurrentHappiness())
                 .currentPersonaId(user.getCurrentPersona() != null ? user.getCurrentPersona().getId() : null)
+                .trustLevel(user.getTrustLevel() != null ? user.getTrustLevel() : 1)
+                .experiencePoints(user.getExperiencePoints() != null ? user.getExperiencePoints() : 0)
                 .build();
     }
 }

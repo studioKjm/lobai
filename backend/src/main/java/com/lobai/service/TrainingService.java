@@ -30,6 +30,7 @@ public class TrainingService {
     private final TrainingStatisticsRepository statisticsRepository;
     private final UserRepository userRepository;
     private final LobCoinService lobCoinService;
+    private final LevelService levelService;
     private final GeminiConfig geminiConfig;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -165,8 +166,13 @@ public class TrainingService {
         session.setUserAnswer(answer);
         session.setTimeTakenSeconds(timeTaken);
 
-        // 3. AI로 답변 평가
-        Map<String, Object> evaluationResult = evaluateAnswerWithAI(session);
+        // 3. 답변 평가 (MEMORY 타입은 정확한 매칭, 나머지는 AI 평가)
+        Map<String, Object> evaluationResult;
+        if (session.getTrainingType() == TrainingSession.TrainingType.MEMORY) {
+            evaluationResult = evaluateMemoryAnswer(session);
+        } else {
+            evaluationResult = evaluateAnswerWithAI(session);
+        }
 
         Integer score = (Integer) evaluationResult.get("score");
         String evaluation = (String) evaluationResult.get("evaluation");
@@ -199,6 +205,15 @@ public class TrainingService {
                 "TRAINING",
                 String.format("훈련 완료 (%s, 점수: %d)", session.getTrainingType(), score)
             );
+        }
+
+        // 훈련 완료 XP 지급 (점수 기반: score/10, 최소 5 최대 15)
+        int trainingXp = Math.max(5, Math.min(15, score / 10));
+        try {
+            levelService.addExperience(user.getId(), trainingXp,
+                String.format("훈련 완료 (%s)", session.getTrainingType()));
+        } catch (Exception e) {
+            log.warn("Training XP reward failed: {}", e.getMessage());
         }
 
         sessionRepository.save(session);
@@ -320,6 +335,127 @@ public class TrainingService {
             log.error("Failed to generate hint with AI", e);
             return "문제를 다시 읽고 핵심 키워드에 집중해보세요.";
         }
+    }
+
+    /**
+     * MEMORY 타입 답변 평가 (정확한 매칭)
+     */
+    private Map<String, Object> evaluateMemoryAnswer(TrainingSession session) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            // 1. 정답 가져오기 (DB 또는 problemText에서 추출)
+            String correctAnswer = null;
+
+            if (session.getProblemId() != null) {
+                // DB에서 정답 가져오기
+                Optional<TrainingProblem> problem = problemRepository.findById(session.getProblemId());
+                if (problem.isPresent()) {
+                    correctAnswer = problem.get().getCorrectAnswer();
+                }
+            }
+
+            // 정답이 없으면 problemText JSON에서 추출
+            if (correctAnswer == null || correctAnswer.isEmpty()) {
+                try {
+                    JsonNode problemJson = objectMapper.readTree(session.getProblemText());
+                    JsonNode dataNode = problemJson.get("data");
+                    if (dataNode != null && dataNode.isArray()) {
+                        List<String> correctItems = new ArrayList<>();
+                        for (JsonNode item : dataNode) {
+                            correctItems.add(item.asText());
+                        }
+                        correctAnswer = String.join(",", correctItems);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to extract correct answer from problemText", e);
+                }
+            }
+
+            if (correctAnswer == null || correctAnswer.isEmpty()) {
+                result.put("score", 0);
+                result.put("evaluation", "정답을 확인할 수 없습니다.");
+                result.put("feedback", "시스템 오류가 발생했습니다. 관리자에게 문의하세요.");
+                return result;
+            }
+
+            // 2. 사용자 답변 정규화 (공백 제거, 소문자 변환)
+            String normalizedAnswer = session.getUserAnswer().trim().replaceAll("\\s+", "");
+            String normalizedCorrect = correctAnswer.trim().replaceAll("\\s+", "");
+
+            // 3. 정확도 계산
+            String[] userItems = normalizedAnswer.split(",");
+            String[] correctItems = normalizedCorrect.split(",");
+
+            int totalItems = correctItems.length;
+            int correctCount = 0;
+            int orderCorrect = 0;
+
+            // 순서와 내용 모두 확인
+            for (int i = 0; i < Math.min(userItems.length, correctItems.length); i++) {
+                if (userItems[i].equalsIgnoreCase(correctItems[i])) {
+                    correctCount++;
+                    orderCorrect++;
+                }
+            }
+
+            // 순서 무시하고 내용만 확인
+            Set<String> correctSet = new HashSet<>(Arrays.asList(correctItems));
+            Set<String> userSet = new HashSet<>(Arrays.asList(userItems));
+            int contentMatches = 0;
+            for (String item : userItems) {
+                if (correctSet.contains(item.toLowerCase())) {
+                    contentMatches++;
+                }
+            }
+
+            // 4. 점수 계산
+            // - 순서 + 내용 모두 정확: 100점
+            // - 순서는 틀렸지만 내용 정확: 70-90점
+            // - 일부만 정확: 비율에 따라 0-70점
+            int score;
+            String evaluation;
+            String feedback;
+
+            if (orderCorrect == totalItems && userItems.length == totalItems) {
+                // 완벽
+                score = 100;
+                evaluation = "완벽합니다! 모든 항목을 정확하게 기억했어요.";
+                feedback = String.format("정답: %s", correctAnswer);
+            } else if (contentMatches == totalItems && userItems.length == totalItems) {
+                // 내용은 맞지만 순서가 틀림
+                score = 70 + (int)((double)orderCorrect / totalItems * 20);
+                evaluation = "내용은 모두 기억했지만 순서가 일부 틀렸습니다.";
+                feedback = String.format("정답 순서: %s\n제출한 답변: %s",
+                    correctAnswer, session.getUserAnswer());
+            } else if (correctCount > 0) {
+                // 일부만 정확
+                score = (int)((double)correctCount / totalItems * 70);
+                evaluation = String.format("%d개 중 %d개를 정확하게 기억했습니다.",
+                    totalItems, correctCount);
+                feedback = String.format("정답: %s\n제출한 답변: %s\n힌트: 순서와 내용 모두 정확해야 합니다.",
+                    correctAnswer, session.getUserAnswer());
+            } else {
+                // 전부 틀림
+                score = 0;
+                evaluation = "아쉽게도 정확하게 기억하지 못했습니다.";
+                feedback = String.format("정답: %s\n다음에는 더 집중해서 기억해보세요!", correctAnswer);
+            }
+
+            result.put("score", score);
+            result.put("evaluation", evaluation);
+            result.put("feedback", feedback);
+
+            log.info("Memory evaluation: correct={}/{}, score={}", correctCount, totalItems, score);
+
+        } catch (Exception e) {
+            log.error("Failed to evaluate memory answer", e);
+            result.put("score", 0);
+            result.put("evaluation", "평가 중 오류가 발생했습니다.");
+            result.put("feedback", "다시 시도해주세요.");
+        }
+
+        return result;
     }
 
     /**

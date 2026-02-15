@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useNavbarAutoHide } from '@/hooks/useNavbarAutoHide';
 import { useAuthStore } from '@/stores/authStore';
@@ -10,6 +10,10 @@ export function Navbar() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const isLandingPage = location.pathname === '/';
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
@@ -25,6 +29,27 @@ export function Navbar() {
       e.preventDefault();
       setIsAuthModalOpen(true);
     }
+  };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    setIsProfileMenuOpen(false);
+    navigate('/');
   };
 
   return (
@@ -69,26 +94,7 @@ export function Navbar() {
               </>
             ) : (
               <>
-                <Link
-                  to="/about"
-                  className={`text-sm font-medium transition-all ${
-                    location.pathname === '/about'
-                      ? 'text-cyan-400 font-semibold opacity-100'
-                      : 'opacity-70 hover:opacity-100'
-                  }`}
-                >
-                  About
-                </Link>
-                <Link
-                  to="/pricing"
-                  className={`text-sm font-medium transition-all ${
-                    location.pathname === '/pricing'
-                      ? 'text-cyan-400 font-semibold opacity-100'
-                      : 'opacity-70 hover:opacity-100'
-                  }`}
-                >
-                  Pricing
-                </Link>
+                {/* Main navigation links - Chat first */}
                 <Link
                   to="/chat"
                   onClick={(e) => handleProtectedRoute(e, '/chat')}
@@ -99,6 +105,17 @@ export function Navbar() {
                   }`}
                 >
                   Chat
+                </Link>
+                <Link
+                  to="/shop"
+                  onClick={(e) => handleProtectedRoute(e, '/shop')}
+                  className={`text-sm font-medium transition-all ${
+                    location.pathname === '/shop'
+                      ? 'text-cyan-400 font-semibold opacity-100'
+                      : 'opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  Shop
                 </Link>
                 <Link
                   to="/dashboard"
@@ -144,17 +161,80 @@ export function Navbar() {
                 >
                   AI 독립 훈련
                 </Link>
+
+                {/* More dropdown (About/Pricing) */}
+                <div className="relative" ref={moreMenuRef}>
+                  <button
+                    onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                    className="text-sm font-medium opacity-70 hover:opacity-100 transition-opacity flex items-center gap-1"
+                  >
+                    More
+                    <svg
+                      className={`w-4 h-4 transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isMoreMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-40 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
+                      <Link
+                        to="/about"
+                        onClick={() => setIsMoreMenuOpen(false)}
+                        className="block px-4 py-2 text-sm hover:bg-white/5 transition-colors"
+                      >
+                        About
+                      </Link>
+                      <Link
+                        to="/pricing"
+                        onClick={() => setIsMoreMenuOpen(false)}
+                        className="block px-4 py-2 text-sm hover:bg-white/5 transition-colors"
+                      >
+                        Pricing
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
+                {/* Profile dropdown */}
+                {user && (
+                  <div className="relative" ref={profileMenuRef}>
+                    <button
+                      onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                      className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-sm font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+                    >
+                      {user.username.charAt(0).toUpperCase()}
+                    </button>
+                    {isProfileMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-48 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
+                        <div className="px-4 py-3 border-b border-white/10">
+                          <p className="text-sm font-medium">{user.username}</p>
+                          <p className="text-xs opacity-50">{user.email}</p>
+                        </div>
+                        <Link
+                          to="/settings"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                          className="block px-4 py-2 text-sm hover:bg-white/5 transition-colors"
+                        >
+                          Settings
+                        </Link>
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors text-red-400"
+                        >
+                          Sign out
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
-            {user ? (
-              <div className="flex items-center gap-4">
-                <span className="text-sm opacity-70">{user.username}</span>
-                <button onClick={logout} className="btn-secondary text-sm px-4 py-2">
-                  로그아웃
-                </button>
-              </div>
-            ) : (
+            {/* Login button for non-authenticated users */}
+            {!user && !isLandingPage && (
               <button
                 onClick={() => setIsAuthModalOpen(true)}
                 className="btn-primary text-sm px-4 py-2"
